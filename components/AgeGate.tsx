@@ -7,7 +7,7 @@ const AgeGate: React.FC = () => {
     const [checks, setChecks] = useState({ age: false, ai: false });
 
     useEffect(() => {
-        const hasAgreed = localStorage.getItem('callhub_age_gate_agreed');
+        const hasAgreed = localStorage.getItem('Bondly_age_gate_agreed');
         if (!hasAgreed) {
             setIsVisible(true);
         }
@@ -15,7 +15,7 @@ const AgeGate: React.FC = () => {
 
     const handleAgree = () => {
         if (!checks.age || !checks.ai) return;
-        localStorage.setItem('callhub_age_gate_agreed', 'true');
+        localStorage.setItem('Bondly_age_gate_agreed', 'true');
         setIsVisible(false);
     };
 
@@ -98,7 +98,7 @@ const AgeGate: React.FC = () => {
                     <div className="flex flex-col items-center gap-3">
                         <div className="h-0.5 w-12 bg-black/5 rounded-full" />
                         <p className="text-[10px] text-black/30 uppercase tracking-[0.5em] font-black">
-                            CallHub AI
+                            Bondly AI
                         </p>
                     </div>
                 </div>

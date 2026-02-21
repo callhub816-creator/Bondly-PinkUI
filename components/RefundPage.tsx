@@ -28,13 +28,13 @@ const RefundPage: React.FC<PageProps> = ({ onBack }) => {
             <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
 
                 <p className="leading-relaxed opacity-90 text-sm italic border-l-4 border-[#FF9ACB] pl-4">
-                    CallHub provides digital entertainment services. Since our AI features and credits are consumed instantly, we have a clear policy regarding refunds and cancellations.
+                    Bondly provides digital entertainment services. Since our AI features and credits are consumed instantly, we have a clear policy regarding refunds and cancellations.
                 </p>
 
                 <section className="space-y-3">
                     <h3 className="text-lg font-bold text-[#4A2040]">1. Digital Consumption</h3>
                     <p className="opacity-90 leading-relaxed">
-                        CallHub AI operates using digital credits that are consumed instantly to access AI-powered features. Once credits are used for chats, calls, or other features, the service is considered fully consumed.
+                        Bondly AI operates using digital credits that are consumed instantly to access AI-powered features. Once credits are used for chats, calls, or other features, the service is considered fully consumed.
                     </p>
                 </section>
 
@@ -64,8 +64,8 @@ const RefundPage: React.FC<PageProps> = ({ onBack }) => {
                     </div>
                     <p className="opacity-90 mb-4">We are here to resolve any billing issues within 24 hours.</p>
                     <div className="space-y-2">
-                        <a href="mailto:support@callhub.in" className="text-[#B28DFF] font-medium hover:underline block">
-                            Email: support@callhub.in
+                        <a href="mailto:support@Bondly.in" className="text-[#B28DFF] font-medium hover:underline block">
+                            Email: support@Bondly.in
                         </a>
                     </div>
                 </section>
@@ -75,7 +75,7 @@ const RefundPage: React.FC<PageProps> = ({ onBack }) => {
             {/* Footer */}
             <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
                 <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
-                    © 2026 CallHub AI • All Rights Reserved<br />
+                    © 2026 Bondly AI • All Rights Reserved<br />
                     Secure checkout powered by Razorpay
                 </p>
             </footer>

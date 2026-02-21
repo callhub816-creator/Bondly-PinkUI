@@ -44,7 +44,7 @@ const SafetyPage: React.FC<PageProps> = ({ onBack }) => {
             <h3 className="text-lg font-bold text-[#4A2040]">Age Requirement (18+)</h3>
           </div>
           <p className="text-sm leading-relaxed opacity-90 text-[#5e3a58]">
-            CallHub AI is strictly for users aged 18 and older. We maintain a mature environment and enforce this restriction to ensure the platform is used only by those who meet the legal age of majority.
+            Bondly AI is strictly for users aged 18 and older. We maintain a mature environment and enforce this restriction to ensure the platform is used only by those who meet the legal age of majority.
           </p>
         </section>
 
@@ -77,7 +77,7 @@ const SafetyPage: React.FC<PageProps> = ({ onBack }) => {
             <h3 className="text-lg font-bold text-[#4A2040]">Virtual Experience Only</h3>
           </div>
           <p className="text-sm leading-relaxed opacity-90 text-[#5e3a58]">
-            CallHub AI does not facilitate, encourage, or provide means for real-world interactions, dating, or matchmaking. It is a strictly virtual, digital-only experience designed for interactive entertainment.
+            Bondly AI does not facilitate, encourage, or provide means for real-world interactions, dating, or matchmaking. It is a strictly virtual, digital-only experience designed for interactive entertainment.
           </p>
         </section>
 
@@ -108,7 +108,7 @@ const SafetyPage: React.FC<PageProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
         <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
-          © 2025 CallHub • All Rights Reserved • 18+ Only<br />
+          © 2025 Bondly • All Rights Reserved • 18+ Only<br />
           Designed for safe, private conversational AI interactions
         </p>
       </footer>

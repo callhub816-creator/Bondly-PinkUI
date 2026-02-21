@@ -21,7 +21,7 @@ const IntroduceYourself: React.FC<IntroduceYourselfProps> = ({ onComplete }) => 
     });
 
     useEffect(() => {
-        const hasIntroduced = localStorage.getItem('callhub_user_introduced');
+        const hasIntroduced = localStorage.getItem('Bondly_user_introduced');
         if (!hasIntroduced) {
             setTimeout(() => setIsVisible(true), 1500);
         }
@@ -29,8 +29,8 @@ const IntroduceYourself: React.FC<IntroduceYourselfProps> = ({ onComplete }) => 
 
     const handleStart = () => {
         if (!formData.name.trim()) return;
-        localStorage.setItem('callhub_user_introduced', 'true');
-        localStorage.setItem('callhub_user_info', JSON.stringify(formData));
+        localStorage.setItem('Bondly_user_introduced', 'true');
+        localStorage.setItem('Bondly_user_info', JSON.stringify(formData));
         setIsVisible(false);
         onComplete(formData);
     };

@@ -28,7 +28,7 @@ const PrivacyPage: React.FC<PageProps> = ({ onBack }) => {
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
 
         <p className="leading-relaxed opacity-90 text-sm">
-          CallHub AI ("we", "our", or "us") is committed to protecting the privacy of our users. This Privacy Policy explains our practices regarding the collection and use of information on our platform.
+          Bondly AI ("we", "our", or "us") is committed to protecting the privacy of our users. This Privacy Policy explains our practices regarding the collection and use of information on our platform.
         </p>
 
         <section className="space-y-3">
@@ -76,8 +76,8 @@ const PrivacyPage: React.FC<PageProps> = ({ onBack }) => {
         <section className="space-y-3 bg-white/50 p-6 rounded-2xl border border-white/60">
           <h3 className="text-lg font-bold text-[#4A2040]">7. Contact Policy</h3>
           <p className="opacity-90 mb-2">For any concerns regarding your privacy or data protection, email us at:</p>
-          <a href="mailto:support@callhub.in" className="text-[#B28DFF] font-medium hover:underline block">
-            support@callhub.in
+          <a href="mailto:support@Bondly.in" className="text-[#B28DFF] font-medium hover:underline block">
+            support@Bondly.in
           </a>
         </section>
 
@@ -86,7 +86,7 @@ const PrivacyPage: React.FC<PageProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
         <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
-          © 2026 CallHub AI • All Rights Reserved • 18+ Only<br />
+          © 2026 Bondly AI • All Rights Reserved • 18+ Only<br />
           Entertainment & Emotional Well-being Platform
         </p>
       </footer>

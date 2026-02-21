@@ -13,12 +13,12 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
 
   const faqs = [
     {
-      q: "What is CallHub AI?",
-      a: "CallHub AI is an online platform that lets you connect with virtual AI companions. You can chat via text or have realistic voice calls with AI characters designed for entertainment, emotional comfort, and friendship."
+      q: "What is Bondly AI?",
+      a: "Bondly AI is an online platform that lets you connect with virtual AI companions. You can chat via text or have realistic voice calls with AI characters designed for entertainment, emotional comfort, and friendship."
     },
     {
       q: "Is this a real dating service?",
-      a: "No. CallHub AI provides interactions with fictional, digitally generated characters. It is not a platform for social networking or matchmaking."
+      a: "No. Bondly AI provides interactions with fictional, digitally generated characters. It is not a platform for social networking or matchmaking."
     },
     {
       q: "How do the AI Companion characters work?",
@@ -37,12 +37,12 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
       a: "Yes! When creating a custom companion, you can either upload your own photo or use our AI to generate a unique look for them."
     },
     {
-      q: "Is CallHub AI safe?",
+      q: "Is Bondly AI safe?",
       a: "We strive to create a safe, judgment-free environment. We have guidelines in place to prevent misuse and ensure interactions remain respectful."
     },
     {
       q: "What age do I need to be to use this?",
-      a: "You must be 18 years or older to access or use the CallHub AI platform."
+      a: "You must be 18 years or older to access or use the Bondly AI platform."
     },
     {
       q: "Do I speak to real humans on calls?",
@@ -58,7 +58,7 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
     },
     {
       q: "Who do I contact for support?",
-      a: "If you need help or have questions, please email our support team at support@callhub.in."
+      a: "If you need help or have questions, please email our support team at support@Bondly.in."
     }
   ];
 
@@ -83,7 +83,7 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
             <HelpCircle size={24} />
           </div>
           <h2 className="text-2xl font-serif-display text-[#4A2040]">Frequently Asked Questions</h2>
-          <p className="text-sm opacity-80">Common questions about the CallHub experience.</p>
+          <p className="text-sm opacity-80">Common questions about the Bondly experience.</p>
         </div>
 
         <div className="space-y-6">
@@ -100,8 +100,8 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
           <p className="opacity-90 mb-4 text-sm">
             We are here to help. Reach out to us anytime.
           </p>
-          <a href="mailto:support@callhub.in" className="inline-flex items-center gap-2 text-[#B28DFF] font-medium hover:underline bg-white px-4 py-2 rounded-full shadow-sm">
-            <Mail size={16} /> support@callhub.in
+          <a href="mailto:support@Bondly.in" className="inline-flex items-center gap-2 text-[#B28DFF] font-medium hover:underline bg-white px-4 py-2 rounded-full shadow-sm">
+            <Mail size={16} /> support@Bondly.in
           </a>
         </section>
 
@@ -110,7 +110,7 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
         <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
-          © 2025 CallHub • All Rights Reserved • 18+ Only<br />
+          © 2025 Bondly • All Rights Reserved • 18+ Only<br />
           Designed for safe, private emotional AI interactions
         </p>
       </footer>
