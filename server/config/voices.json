@@ -1,0 +1,30 @@
+[
+  {
+    "id": "en-US-Neural2-A",
+    "name": "Veena",
+    "role": "assistant",
+    "gender": "female",
+    "language": "en-US"
+  },
+  {
+    "id": "en-US-Neural2-C",
+    "name": "Simran",
+    "role": "representative",
+    "gender": "female",
+    "language": "en-US"
+  },
+  {
+    "id": "en-US-Neural2-E",
+    "name": "Aria",
+    "role": "assistant",
+    "gender": "female",
+    "language": "en-US"
+  },
+  {
+    "id": "en-US-Neural2-A-Standard",
+    "name": "Alex",
+    "role": "bot",
+    "gender": "male",
+    "language": "en-US"
+  }
+]

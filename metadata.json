@@ -1,0 +1,7 @@
+{
+  "name": "Romantic Mode Cards",
+  "description": "A collection of 5 interactive, aesthetic mode cards designed with a romantic, soft, and human feel using CSS-only abstract art.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

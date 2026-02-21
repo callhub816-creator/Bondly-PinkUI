@@ -1,0 +1,54 @@
+
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+    const oldRefreshToken = cookies["refresh_token"];
+
+    if (!oldRefreshToken) return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 401 });
+
+    try {
+        // 1. 🔍 Validate Refresh Token in DB
+        const session = await env.DB.prepare("SELECT * FROM sessions WHERE refresh_token = ? AND revoked = 0 AND expires_at > ?")
+            .bind(oldRefreshToken, Date.now()).first();
+
+        if (!session) return new Response(JSON.stringify({ error: "Invalid or expired session" }), { status: 401 });
+
+        // 2. 🔄 Rotate Tokens (Revoke Old, Create New)
+        const userId = session.user_id;
+        const user = await env.DB.prepare("SELECT id, username, display_name FROM users WHERE id = ?").bind(userId).first();
+
+        const newRefreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
+        const newAccessExp = Date.now() + (15 * 60 * 1000);
+        const newRefreshExp = Date.now() + (30 * 86400000);
+
+        const encoder = new TextEncoder();
+        const payload = JSON.stringify({ id: user.id, username: user.username, displayName: user.display_name, exp: newAccessExp });
+        const payloadB64 = btoa(String.fromCharCode(...encoder.encode(payload)));
+
+        const secret = env.JWT_SECRET;
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+        const newAccessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
+
+        await env.DB.batch([
+            env.DB.prepare("UPDATE sessions SET revoked = 1 WHERE refresh_token = ?").bind(oldRefreshToken),
+            env.DB.prepare("INSERT INTO sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, newRefreshToken, newRefreshExp, new Date().toISOString())
+        ]);
+
+        return new Response(JSON.stringify({ success: true }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Set-Cookie": [
+                    `auth_token=${newAccessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`,
+                    `refresh_token=${newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
+                ].join(', ')
+            }
+        });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: "Rotation failed" }), { status: 500 });
+    }
+}

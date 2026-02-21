@@ -1,0 +1,42 @@
+[
+  {
+    "text": "Hello, welcome to CallHub voice assistant.",
+    "context": "greeting"
+  },
+  {
+    "text": "How can I help you today?",
+    "context": "greeting"
+  },
+  {
+    "text": "Thank you for calling CallHub.",
+    "context": "greeting"
+  },
+  {
+    "text": "Your call is important to us.",
+    "context": "message"
+  },
+  {
+    "text": "Please hold while we connect you.",
+    "context": "wait"
+  },
+  {
+    "text": "You're now being transferred to the next available representative.",
+    "context": "transfer"
+  },
+  {
+    "text": "Thank you for your feedback.",
+    "context": "closing"
+  },
+  {
+    "text": "Have a great day, and thank you for choosing CallHub!",
+    "context": "closing"
+  },
+  {
+    "text": "Our team will get back to you shortly.",
+    "context": "wait"
+  },
+  {
+    "text": "For English, press 1. For Spanish, press 2.",
+    "context": "menu"
+  }
+]
