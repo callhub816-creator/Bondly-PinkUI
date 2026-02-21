@@ -1,4 +1,4 @@
--- Bondly D1 Schema
+-- Bondly D1 Schema (2026-02-22)
 
 -- 1. Users Table
 CREATE TABLE IF NOT EXISTS users (
@@ -7,66 +7,82 @@ CREATE TABLE IF NOT EXISTS users (
     display_name TEXT,
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    profile_data TEXT, -- JSON: { bio, avatarUrl, hearts, subscription, streak, last_chat_date }
+    status TEXT DEFAULT 'active',
+    profile_data TEXT, -- JSON: { bio, avatarUrl, last_chat_date, long_term_memory, bond_level }
+    last_login_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- 2. Wallets Table (Currency Management)
+CREATE TABLE IF NOT EXISTS wallets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    hearts INTEGER DEFAULT 0,
+    total_spent INTEGER DEFAULT 0,
+    total_earned INTEGER DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
+-- 3. Subscriptions Table
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    plan_name TEXT NOT NULL, -- 'FREE', 'STARTER', 'CORE', 'PLUS'
+    status TEXT DEFAULT 'active',
+    started_at TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
--- Index for fast user lookup (usually primary key is enough)
 
--- 2. Messages Table
-CREATE TABLE IF NOT EXISTS messages (
+-- 4. User Sessions (Refresh Tokens)
+CREATE TABLE IF NOT EXISTS user_sessions (
     id TEXT PRIMARY KEY,
-    chat_id TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
-    body TEXT,
-    created_at TEXT NOT NULL,
-    role TEXT DEFAULT 'user', -- 'user' or 'assistant'
-    sender_handle TEXT, -- Human readable username for easy DB audits
-    metadata TEXT, -- JSON for extra info
-    is_deleted INTEGER DEFAULT 0
-);
--- Indexes for Performance
-CREATE INDEX IF NOT EXISTS idx_messages_chat_id_created ON messages(chat_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_sender_id_created ON messages(sender_id, created_at); -- For Rate Limiting
-
--- 3. Processed Orders (Revenue Security)
-CREATE TABLE IF NOT EXISTS processed_orders (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    order_id TEXT NOT NULL UNIQUE,
-    amount INTEGER,
-    created_at TEXT
-);
--- Index for Idempotency Check
-CREATE INDEX IF NOT EXISTS idx_processed_orders_order_id ON processed_orders(order_id);
-
--- 4. Audit Logs
-CREATE TABLE IF NOT EXISTS logs (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    action TEXT,
-    details TEXT, -- JSON
-    created_at TEXT
-);
--- 5. Sessions (Refresh Tokens)
-CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
     refresh_token TEXT NOT NULL UNIQUE,
     expires_at INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     revoked INTEGER DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_sessions_refresh ON sessions(refresh_token);
 
--- 6. Wallet Audit Log (Strict Fraud Monitoring)
+-- 5. Wallet Audit Log (Revenue Security)
 CREATE TABLE IF NOT EXISTS wallet_audit_log (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    change_amount INTEGER NOT NULL,
-    new_balance INTEGER NOT NULL,
-    action TEXT NOT NULL, -- 'spend', 'purchase', 'bonus'
+    user_id TEXT NOT NULL REFERENCES users(id),
+    amount INTEGER NOT NULL,
+    type TEXT NOT NULL, -- 'spend', 'purchase', 'bonus'
     reason TEXT,
     ip_address TEXT,
     created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_wallet_audit_user ON wallet_audit_log(user_id);
+
+-- 6. Messages Table
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    sender_handle TEXT,
+    body TEXT,
+    role TEXT DEFAULT 'user', -- 'user' or 'assistant'
+    metadata TEXT, -- JSON: { audioUrl, gifUrl }
+    is_deleted INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at);
+
+-- 7. Event Logs
+CREATE TABLE IF NOT EXISTS event_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id),
+    event_type TEXT NOT NULL,
+    metadata TEXT, -- JSON
+    created_at TEXT NOT NULL
+);
+
+-- 8. Processed Orders (Idempotency)
+CREATE TABLE IF NOT EXISTS processed_orders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    order_id TEXT NOT NULL UNIQUE,
+    amount INTEGER, -- in paise
+    created_at TEXT NOT NULL
+);

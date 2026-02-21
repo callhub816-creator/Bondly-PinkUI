@@ -59,14 +59,18 @@ export async function onRequestPost({ request, env }) {
     try {
         const { profileData } = await request.json();
 
-        // 🛡️ [SECURITY LOCK] Fetch Existing Data First to Prevent Overwrite
-        const existingUser = await env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first();
+        // 🛡️ [SECURITY LOCK] Fetch Existing Data + Wallet + Subscription
+        const [userRow, walletRow, subRow] = await Promise.all([
+            env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+        ]);
 
-        if (!existingUser) {
+        if (!userRow) {
             return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
         }
 
-        const existingProfile = JSON.parse(existingUser.profile_data || "{}");
+        const existingProfile = JSON.parse(userRow.profile_data || "{}");
 
         // 🔒 ALLOWED FIELDS ONLY (Whitelist)
         const safeUpdate = {
@@ -83,10 +87,9 @@ export async function onRequestPost({ request, env }) {
                     return new Date(item.timestamp).getTime() > cutoff;
                 })
                 .slice(0, 50),
-            // Keep critical fields from SERVER state
-            hearts: existingProfile.hearts ?? 10,
-            subscription_tier: existingProfile.subscription_tier ?? 'free',
-            subscription_expires_at: existingProfile.subscription_expires_at ?? null
+            // Keep critical fields from SERVER state (Normalized Tables)
+            hearts: walletRow?.hearts ?? existingProfile.hearts ?? 0,
+            subscription_tier: subRow?.plan_name || existingProfile.subscription_tier || 'FREE'
         };
 
         // Update DB with SAFE data

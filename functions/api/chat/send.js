@@ -80,32 +80,39 @@ export async function onRequestPost({ request, env }) {
         const longTermMemory = userProfile.long_term_memory || "Nothing yet, we just started our journey.";
         const bondLevel = userProfile.bond_level || 1;
 
-        // 3. 🚀 ATOMIC UPDATE (Deduct Hearts + Rate Limit)
+        // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET + Rate Limit Check on USER)
         const heartsToDeduct = isVoiceNote ? 3 : 1;
         const nowMs = Date.now();
-        const rateLimitThreshold = nowMs - 1500;
+        const rateLimitThreshold = nowMs - 1500; // 1.5s spam protection
         const nowIso = new Date(nowMs).toISOString();
 
-        // 🛡️ STRICT CONSISTENCY UPDATE
+        // 🛡️ BATCH TRANSACTION: Check Rate Limit + Deduct Hearts + Save Message
         const batchResult = await env.DB.batch([
+            // a. Rate limit check (Update timestamp if allowed)
             env.DB.prepare(`
                 UPDATE users 
-                SET profile_data = json_set(profile_data, 
-                    '$.hearts', CAST(json_extract(profile_data, '$.hearts') AS INTEGER) - ?,
-                    '$.last_message_ts', ? 
-                )
+                SET updated_at = ? 
                 WHERE id = ? 
-                AND CAST(json_extract(profile_data, '$.hearts') AS INTEGER) >= ?
-                AND (
-                    json_extract(profile_data, '$.last_message_ts') IS NULL 
-                    OR CAST(json_extract(profile_data, '$.last_message_ts') AS INTEGER) < ?
-                )
-            `).bind(heartsToDeduct, nowMs, userId, heartsToDeduct, rateLimitThreshold),
-            env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), chatId, userId, userHandle, userMsgBody, nowIso, 'user')
+                AND (updated_at IS NULL OR CAST((julianday(?) - julianday(updated_at)) * 86400000 AS INTEGER) > 1500)
+            `).bind(nowIso, userId, nowIso),
+
+            // b. Deduct Hearts from Wallet
+            env.DB.prepare(`
+                UPDATE wallets 
+                SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ?
+                WHERE user_id = ? AND hearts >= ?
+            `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
+
+            // c. Save Message
+            env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), chatId, userId, userHandle, userMsgBody, nowIso, 'user')
         ]);
 
         if (batchResult[0].meta.changes === 0) {
-            return new Response(JSON.stringify({ error: "Insufficient hearts or too fast! ❤️", action: "open_shop" }), { status: 429 });
+            return new Response(JSON.stringify({ error: "Thoda dheere! Please wait a moment." }), { status: 429 });
+        }
+        if (batchResult[1].meta.changes === 0) {
+            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️", action: "open_shop" }), { status: 429 });
         }
 
         // ⚡ SMART PRE-RESPONSE CACHE (Save API Hits for common phrases)
