@@ -21,11 +21,11 @@ type AuthContextType = {
   refreshProfile: () => void;
   upgradeSubscription: (plan: SubscriptionPlan) => Promise<void>;
   purchaseHearts: (amount: number) => Promise<void>;
-  spendHearts: (amount: number) => boolean;
-  sendGift: (companionId: string | number, giftId: string) => boolean;
+  spendHearts: (amount: number) => Promise<boolean>;
+  sendGift: (companionId: string | number, giftId: string) => Promise<boolean>;
   unlockConnectionTier: (companionId: string | number, tier: ConnectionLevel) => boolean;
   leasePersonality: (mode: string) => boolean;
-  extendMessages: () => boolean;
+  extendMessages: () => Promise<boolean>;
   buyStarterPass: () => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
   claimDailyBonus: () => Promise<boolean>;
@@ -143,17 +143,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!res.ok) {
-        // Handle case where error might be a stringified object or raw string
         let errorMessage = 'Invalid username or password';
+        let errorField: string | undefined;
         if (data && data.error) {
           errorMessage = data.error;
+          errorField = data.field; // 'username' | 'password' | undefined
         } else if (typeof data === 'string' && data.includes('{')) {
           try {
             const parsed = JSON.parse(data);
             errorMessage = parsed.error || errorMessage;
+            errorField = parsed.field;
           } catch (e) { }
         }
-        throw new Error(errorMessage);
+        throw Object.assign(new Error(errorMessage), { field: errorField });
       }
 
       setUser(data.user);
@@ -164,7 +166,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data, error: null };
     } catch (err: any) {
       console.error('AuthContext signIn catch:', err);
-      // Clean up the error message if it's still JSON
       let msg = err.message || 'Login failed';
       if (msg.startsWith('{')) {
         try {
@@ -172,7 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           msg = parsed.error || msg;
         } catch (e) { }
       }
-      return { data: null, error: { message: msg } };
+      return { data: null, error: { message: msg, field: err.field } };
     } finally {
       setLoading(false);
     }

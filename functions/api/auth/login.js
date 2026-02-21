@@ -19,7 +19,10 @@ export async function onRequestPost({ request, env }) {
         // 2. Get user from DB
         const user = await env.DB.prepare("SELECT * FROM users WHERE username = ?").bind(username).first();
         if (!user) {
-            return new Response(JSON.stringify({ error: "Invalid username or password." }), {
+            return new Response(JSON.stringify({
+                error: "Username not found. Check spelling or create an account.",
+                field: "username"
+            }), {
                 status: 401,
                 headers: { "Content-Type": "application/json" }
             });
@@ -54,7 +57,10 @@ export async function onRequestPost({ request, env }) {
             await env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), user.id, 'login_fail', JSON.stringify({ ip }), new Date().toISOString()).run();
 
-            return new Response(JSON.stringify({ error: "Invalid username or password." }), {
+            return new Response(JSON.stringify({
+                error: "Wrong password. Please try again.",
+                field: "password"
+            }), {
                 status: 401,
                 headers: { "Content-Type": "application/json" }
             });
