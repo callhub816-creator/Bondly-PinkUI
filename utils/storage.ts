@@ -188,6 +188,7 @@ export const storage = {
       hearts: 20,
       midnightPassExpiry: undefined,
       sessionsCount: 0,
+      streakCount: 0,
       earningsHistory: [],
       avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anya'
     };
