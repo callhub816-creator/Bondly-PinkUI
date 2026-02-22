@@ -10,7 +10,7 @@ export async function onRequestPost({ request, env }) {
 
     try {
         // 1. 🔍 Validate Refresh Token in DB
-        const session = await env.DB.prepare("SELECT * FROM sessions WHERE refresh_token = ? AND revoked = 0 AND expires_at > ?")
+        const session = await env.DB.prepare("SELECT * FROM user_sessions WHERE refresh_token = ? AND revoked = 0 AND expires_at > ?")
             .bind(oldRefreshToken, Date.now()).first();
 
         if (!session) return new Response(JSON.stringify({ error: "Invalid or expired session" }), { status: 401 });
@@ -33,8 +33,8 @@ export async function onRequestPost({ request, env }) {
         const newAccessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
 
         await env.DB.batch([
-            env.DB.prepare("UPDATE sessions SET revoked = 1 WHERE refresh_token = ?").bind(oldRefreshToken),
-            env.DB.prepare("INSERT INTO sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+            env.DB.prepare("UPDATE user_sessions SET revoked = 1 WHERE refresh_token = ?").bind(oldRefreshToken),
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, newRefreshToken, newRefreshExp, new Date().toISOString())
         ]);
 
