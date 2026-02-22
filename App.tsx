@@ -244,6 +244,15 @@ const AppContent: React.FC = () => {
     showNotification('Local chat histories cleared.', 'info');
   };
 
+  // Auto-redirect to home when user logs in successfully
+  useEffect(() => {
+    if (user && currentPage === 'auth') {
+      setCurrentPage('home');
+      // Reset URL to clean home path
+      window.history.pushState({}, '', '/');
+    }
+  }, [user, currentPage]);
+
   if (currentPage === 'admin') {
     return (
       <AdminPage
@@ -260,15 +269,6 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
-
-  // Auto-redirect to home when user logs in successfully
-  useEffect(() => {
-    if (user && currentPage === 'auth') {
-      setCurrentPage('home');
-      // Reset URL to clean home path
-      window.history.pushState({}, '', '/');
-    }
-  }, [user, currentPage]);
 
   if (currentPage === 'auth') {
     return <AuthScreen />;
