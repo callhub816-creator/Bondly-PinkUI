@@ -5,8 +5,8 @@ pages_build_output_dir = "./dist"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "bondly-db"
-database_id = "NEW_D1_ID_PROMPT" # Naya D1 banane ke baad yahan ID aayegi
+database_name = "callhub-db"
+database_id = "ff7486c4-2ecb-4247-8b67-d24a2ddb8749"
 
 [vars]
 # Production Environment Variables
