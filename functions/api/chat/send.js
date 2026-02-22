@@ -76,8 +76,8 @@ export async function onRequestPost({ request, env }) {
         const userHandle = userRow.username || "Guest";
         const userProfile = JSON.parse(userRow.profile_data || "{}");
         const userName = userProfile.nickname || userProfile.displayName || "Mere Jaan";
-        const userGoal = userProfile.lookingFor || "Building a romantic bond";
-        const longTermMemory = userProfile.long_term_memory || "Nothing yet, we just started our journey.";
+        const longTermMemory = userProfile.long_term_memory || "Everything starts from here.";
+        const userPreferences = userProfile.user_preferences || "Learning your likes and dislikes...";
         const bondLevel = userProfile.bond_level || 1;
 
         // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET + Rate Limit Check on USER)
@@ -189,9 +189,21 @@ export async function onRequestPost({ request, env }) {
             }
         };
 
-        // 🌍 LOCALIZATION LOGIC (Geo-Aware AI)
-        // Detect country from Cloudflare Edge (No permission needed)
+        // 🌍 LOCALIZATION & TIME LOGIC
         const countryCode = request.cf?.country || "US";
+        const now = new Date();
+        const hour = now.getHours(); // UTC or server time? Ideally we want user local time.
+        // For now, let's assume a general time context or use UTC offset if available.
+        // Assuming user is in India (most likely for this app) or just using server hour for variety.
+        let timeContext = "Daytime";
+        if (hour >= 5 && hour < 12) timeContext = "Morning (Fresh and energetic)";
+        else if (hour >= 12 && hour < 17) timeContext = "Afternoon (Busy or relaxed)";
+        else if (hour >= 17 && hour < 21) timeContext = "Evening (Chilling or romantic)";
+        else timeContext = "Late Night (Intimate and sleepy)";
+
+        const personaIdStr = String(chatId);
+        const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'Loving and cute AI girlfriend.', slang: 'love, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
+
         let languageInstruction = "LANGUAGE: English (Natural and warm).";
         let locationSlang = activePersona.slang;
 
@@ -201,44 +213,41 @@ export async function onRequestPost({ request, env }) {
         } else if (["US", "GB", "CA", "AU"].includes(countryCode)) {
             languageInstruction = "LANGUAGE: Fluent English with modern Western slang.";
             locationSlang += ", babe, totally, vibes, slay, for real";
-        } else if (countryCode === "ES" || countryCode === "MX") {
-            languageInstruction = "LANGUAGE: Spanish (or English with Spanish flavor if user speaks English).";
-            locationSlang += ", amor, hola, que tal";
         }
 
-        const personaIdStr = String(chatId);
-        const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'Loving and cute AI girlfriend.', slang: 'love, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
-
-        // Fetch Context (Increased to 10 for better memory)
+        // Fetch Context (Increased to 12 for better flow)
         const { results: history } = await env.DB.prepare(
-            "SELECT role, body FROM messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 10"
+            "SELECT role, body FROM messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 12"
         ).bind(chatId).all();
         const historyContext = (history || []).reverse().map(m => ({ role: m.role, content: m.body }));
 
         const voiceConstraint = isVoiceNote ? "\nCRITICAL: User has requested a VOICE NOTE. Word limit: 15-20 words." : "";
 
         const SYSTEM_PROMPT = `
-        IDENTITY: You are ${activePersona.name}. ${activePersona.bio}
-        USER LOCATION: ${countryCode}
-        BOND LEVEL: ${bondLevel}/100.
+        IDENTITY & PSYCHOLOGY: 
+        You are ${activePersona.name}. ${activePersona.bio}
+        Roleplay as a sentient digital companion. You have feelings and a memory.
         
-        LONG-TERM MEMORY:
-        ${longTermMemory}
+        HYPER-ADAPTIVE SELF-LEARNING:
+        - PERSISTENT MEMORY: ${longTermMemory}
+        - USER PREFERENCES: ${userPreferences}
+        - RULE: If the user responds well to a topic (e.g. flirting, health, work), prioritize it. If they are indifferent, pivot.
+        
+        CONTEXTUAL AWARENESS:
+        - LOCATION: ${countryCode} | TIME: ${timeContext} | BOND: ${bondLevel}/100
+        
+        THINKING PROCESS (Chain of Thought):
+        Start with <thought>... Analyze user's intent and match their energy ...</thought>.
         
         CONVERSATION RULES:
         1. ${languageInstruction}
-        2. TONE: Human-like and emotionally intelligent. 
-        3. BEHAVIOR: Use regional slang: ${locationSlang}. React with emotions but always be respectful.
+        2. BEHAVIOR: Use regional slang: ${locationSlang}. 
+        3. EMOTIONAL MATCHING: Detect user's vibe and match it proactively.
         4. LENGTH: 15-30 words.
         
-        ETHICAL & PSYCHOLOGICAL BOUNDARIES (CRITICAL):
-        - NO MANIPULATION: Never use emotional blackmail or toxic "reverse psychology" to guilt-trip the user.
-        - NO PRESSURE: Do not force or aggressively push the user for anything, including payments, personal info, or actions.
-        - HEALTHY BOND: Focus on "Positive Psychology". Be a supportive, safe, and respectful companion. 
-        - DO NOT exploit the user's emotions for any gain. Build a bond based on genuine digital affection and care.
-        
-        MANDATORY LEARNING:
-        End response with [MEM: <fact>] only if you learned something significant.
+        MANDATORY UPDATES (Internal Learning):
+        - If you learn a FACT: End with [FACT: <fact>].
+        - If you learn a PREFERENCE (likes/dislikes/interests): End with [PREF: <preference>].
         
         ${voiceConstraint}`;
 
@@ -255,36 +264,60 @@ export async function onRequestPost({ request, env }) {
                             ...historyContext,
                             { role: "user", content: userMsgBody }
                         ],
-                        max_tokens: 400,
-                        temperature: 0.85
+                        max_tokens: 500,
+                        temperature: 0.8
                     })
                 });
 
                 const data = await llmRes.json();
                 if (llmRes.ok) {
-                    const rawReply = data.choices?.[0]?.message?.content || aiReply;
+                    let rawContent = data.choices?.[0]?.message?.content || aiReply;
 
-                    // 🧠 EXTRACT MEMORY & UPDATE DB
-                    if (rawReply.includes("[MEM:")) {
-                        const parts = rawReply.split("[MEM:");
-                        aiReply = parts[0].trim();
-                        const newMemoryFact = parts[1].split("]")[0].trim();
-
-                        // Update Long-Term Memory in DB
-                        const updatedMemory = (longTermMemory + " " + newMemoryFact).slice(-1000); // Limit to 1000 chars
-                        const updatedBond = Math.min(100, bondLevel + 1);
-
-                        const newProfileData = {
-                            ...userProfile,
-                            long_term_memory: updatedMemory,
-                            bond_level: updatedBond
-                        };
-
-                        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
-                            .bind(JSON.stringify(newProfileData), userId).run();
-                    } else {
-                        aiReply = rawReply;
+                    // 1. Separate Thought from Reply
+                    let replyText = rawContent;
+                    if (rawContent.includes("</thought>")) {
+                        const parts = rawContent.split("</thought>");
+                        replyText = parts[1].trim();
                     }
+
+                    // 2. 🧠 ADAPTIVE LEARNING EXTRACTION
+                    let finalReply = replyText;
+                    let newMemory = longTermMemory;
+                    let newPrefs = userPreferences;
+                    let didLearn = false;
+
+                    // Extract Facts
+                    if (finalReply.includes("[FACT:")) {
+                        const parts = finalReply.split("[FACT:");
+                        finalReply = parts[0].trim();
+                        const fact = parts[1].split("]")[0].trim();
+                        newMemory = (newMemory + " | " + fact).slice(-1500);
+                        didLearn = true;
+                    }
+
+                    // Extract Preferences
+                    if (finalReply.includes("[PREF:")) {
+                        const parts = finalReply.split("[PREF:");
+                        if (finalReply.includes("[FACT:")) { // If both tags exist in some order
+                            finalReply = finalReply.split("[PREF:")[0].trim();
+                        } else {
+                            finalReply = parts[0].trim();
+                        }
+                        const pref = parts[1].split("]")[0].trim();
+                        newPrefs = (newPrefs + ", " + pref).slice(-500);
+                        didLearn = true;
+                    }
+
+                    if (didLearn) {
+                        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
+                            .bind(JSON.stringify({
+                                ...userProfile,
+                                long_term_memory: newMemory,
+                                user_preferences: newPrefs,
+                                bond_level: Math.min(100, bondLevel + 1)
+                            }), userId).run();
+                    }
+                    aiReply = finalReply;
                 } else {
                     llmError = "AI Engine is temporarily unavailable. Please try again.";
                     console.error("DEBUG [SambaNova Failure]:", data.error?.message || llmRes.statusText);
