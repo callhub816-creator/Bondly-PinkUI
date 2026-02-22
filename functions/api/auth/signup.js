@@ -51,6 +51,14 @@ export async function onRequestPost({ request, env }) {
         const refreshTokenVal = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
         const refreshExp = Date.now() + (30 * 86400000);
 
+        const initialProfile = {
+            hearts: 20,
+            subscription: 'FREE',
+            streakCount: 0,
+            long_term_memory: "Everything starts from here.",
+            user_preferences: "Learning your likes..."
+        };
+
         const payload = JSON.stringify({ id: userId, username, displayName, exp: accessTokenExp });
         const payloadUint8 = encoder.encode(payload);
         const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
@@ -66,8 +74,8 @@ export async function onRequestPost({ request, env }) {
         await env.DB.batch([
             // 1. Create User
             env.DB.prepare(
-                "INSERT INTO users (id, username, display_name, password_hash, password_salt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            ).bind(userId, username, displayName, passwordHash, passwordSalt, 'active', nowIso, nowIso),
+                "INSERT INTO users (id, username, display_name, password_hash, password_salt, status, profile_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).bind(userId, username, displayName, passwordHash, passwordSalt, 'active', JSON.stringify(initialProfile), nowIso, nowIso),
 
             // 2. Initialize Wallet (20 Hearts Bonus)
             env.DB.prepare(
