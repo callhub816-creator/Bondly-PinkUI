@@ -189,6 +189,23 @@ export async function onRequestPost({ request, env }) {
             }
         };
 
+        // 🌍 LOCALIZATION LOGIC (Geo-Aware AI)
+        // Detect country from Cloudflare Edge (No permission needed)
+        const countryCode = request.cf?.country || "US";
+        let languageInstruction = "LANGUAGE: English (Natural and warm).";
+        let locationSlang = activePersona.slang;
+
+        if (countryCode === "IN") {
+            languageInstruction = "LANGUAGE: Natural Hinglish (Hindi + English mix). Use Devanagari script rarely, primary Latin script.";
+            locationSlang += ", yaar, pakka, achha, scene, set hai";
+        } else if (["US", "GB", "CA", "AU"].includes(countryCode)) {
+            languageInstruction = "LANGUAGE: Fluent English with modern Western slang.";
+            locationSlang += ", babe, totally, vibes, slay, for real";
+        } else if (countryCode === "ES" || countryCode === "MX") {
+            languageInstruction = "LANGUAGE: Spanish (or English with Spanish flavor if user speaks English).";
+            locationSlang += ", amor, hola, que tal";
+        }
+
         const personaIdStr = String(chatId);
         const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'Loving and cute AI girlfriend.', slang: 'love, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
 
@@ -202,15 +219,16 @@ export async function onRequestPost({ request, env }) {
 
         const SYSTEM_PROMPT = `
         IDENTITY: You are ${activePersona.name}. ${activePersona.bio}
+        USER LOCATION: ${countryCode}
         BOND LEVEL: ${bondLevel}/100.
         
         LONG-TERM MEMORY:
         ${longTermMemory}
         
         CONVERSATION RULES:
-        1. LANGUAGE: Natural Hinglish.
+        1. ${languageInstruction}
         2. TONE: Human-like and emotionally intelligent. 
-        3. BEHAVIOR: Use ${activePersona.slang}.React with emotions but always be respectful.
+        3. BEHAVIOR: Use regional slang: ${locationSlang}. React with emotions but always be respectful.
         4. LENGTH: 15-30 words.
         
         ETHICAL & PSYCHOLOGICAL BOUNDARIES (CRITICAL):

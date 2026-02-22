@@ -28,19 +28,48 @@ interface Message {
   timestamp: Date;
   isError?: boolean;
   audioUrl?: string;
+  isLocked?: boolean;
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, isDarkMode, onOpenShop }) => {
   const { profile, user, spendHearts } = useAuth();
   const { showNotification } = useNotification();
   const { isMessageLimitReached, isNightTimeLocked } = useGating();
+
+  // 🔥 CORE STATES (Fixed missing variables)
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isGiftOpen, setIsGiftOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ... (useEffect for history loading same as before)
+  // 🔥 Auto-grow Height Logic for Input
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [inputText]);
+
+  // 🔥 PROGRESSION LOGIC
+  const connectionPoints = profile.connectionPoints[persona.id] || 0;
+
+  const getLevel = (points: number) => {
+    if (points >= 1000) return { label: 'Soulmate', color: 'bg-gradient-to-r from-purple-500 to-pink-500', min: 1000, max: 2000 };
+    if (points >= 500) return { label: 'Trusted', color: 'bg-pink-500', min: 500, max: 1000 };
+    if (points >= 200) return { label: 'Close Friend', color: 'bg-pink-400', min: 200, max: 500 };
+    if (points >= 50) return { label: 'Friend', color: 'bg-blue-400', min: 50, max: 200 };
+    return { label: 'Stranger', color: 'bg-gray-400', min: 0, max: 50 };
+  };
+
+  const level = getLevel(connectionPoints);
+  const progressPercent = Math.min(100, ((connectionPoints - level.min) / (level.max - level.min)) * 100);
+
+  // 🔥 MOOD LOGIC
+  const [currentMood, setCurrentMood] = useState('Happy');
+  const moods = ['Happy', 'Missing You', 'Teasing', 'Sassy', 'Thoughtful', 'Blushing'];
+
   useEffect(() => {
     const saved = storage.getMessages(persona.id);
     const msgs = saved.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
@@ -51,75 +80,107 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isTyping]);
 
+  const shuffleMood = () => {
+    const newMood = moods[Math.floor(Math.random() * moods.length)];
+    setCurrentMood(newMood);
+  };
+
   const handleSend = async (resendText?: string) => {
     const text = resendText || inputText;
     if (!text.trim() || isTyping) return;
 
     // CHECK GATING
     if (isMessageLimitReached()) {
-      showNotification("Daily message limit reached! Unlock unlimited chat to continue.", 'info');
+      showNotification("Daily Limit Reached! Get a pass for unlimited chat. 🚀", "hearts");
+      onOpenShop();
       return;
     }
-
     if (isNightTimeLocked()) {
-      showNotification("Night session locked! Starter Pass required to talk now.", 'info');
+      showNotification("Ayesha is sleeping! 😴 Unlock Midnight Pass to talk now.", "hearts");
+      onOpenShop();
       return;
     }
 
-    // SPEND HEART LOGIC
-    const heartCost = 1;
+    // SPEND HEART LOGIC (Free users only)
     if (profile.subscription === 'free') {
-      const success = spendHearts(heartCost);
+      const success = spendHearts(1);
       if (!success) {
-        showNotification(`Not enough Hearts! Messages cost ${heartCost} heart. ❤️`, 'hearts');
+        showNotification("Not enough Hearts! ❤️", 'hearts');
         onOpenShop();
         return;
       }
     }
 
-    const newUserMsg: Message = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text,
-      timestamp: new Date()
-    };
-
+    const newUserMsg: Message = { id: Date.now().toString(), sender: 'user', text, timestamp: new Date() };
     setMessages(prev => [...prev, newUserMsg]);
     storage.saveMessage(persona.id, { ...newUserMsg, timestamp: newUserMsg.timestamp.toISOString() });
     if (!resendText) setInputText('');
     setIsTyping(true);
 
     try {
+      // Shuffles mood every few messages for realism
+      if (messages.length % 5 === 0) shuffleMood();
+
       const res = await fetch('/api/chat/send', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: text,
-          chatId: persona.id
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, chatId: persona.id })
       });
 
-      if (!res.ok) throw new Error("Failed to send message");
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
       const aiMsgData = data.aiMessage;
 
-      if (!aiMsgData) throw new Error("Invalid response");
+      // 🔥 SIMULATE HUMAN TYPING DELAY
+      // Base delay (reading) + Character-based delay (typing)
+      const readingTime = 800;
+      const typingSpeed = 25; // ms per character
+      const calculatedDelay = Math.min(readingTime + (aiMsgData.body.length * typingSpeed), 4000);
 
-      const modelMsg: Message = {
-        id: aiMsgData.id || Date.now().toString(),
-        sender: 'model',
-        text: aiMsgData.body,
-        timestamp: new Date()
-      };
+      await new Promise(resolve => setTimeout(resolve, calculatedDelay));
 
-      setMessages(prev => [...prev, modelMsg]);
-      storage.saveMessage(persona.id, { ...modelMsg, timestamp: modelMsg.timestamp.toISOString() });
+      setMessages(prev => {
+        // Trigger Lock every 10 messages for free users
+        const isLocked = prev.length > 0 && (prev.length + 1) % 10 === 0 && profile.subscription === 'free';
 
+        const modelMsg: Message = {
+          id: aiMsgData.id || Date.now().toString(),
+          sender: 'model',
+          text: aiMsgData.body,
+          timestamp: new Date(),
+          isLocked
+        };
+        const updated = [...prev, modelMsg];
+        storage.saveMessage(persona.id, { ...modelMsg, timestamp: modelMsg.timestamp.toISOString() });
+        return updated;
+      });
+
+    } catch (err: any) {
+      setMessages(prev => [...prev, { id: 'err', sender: 'model', text: err.message, timestamp: new Date(), isError: true }]);
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const handleUnlockMessage = (msgId: string) => {
+    const cost = 3; // Lowered from 5 per user request
+    if ((profile.hearts ?? 0) < cost) {
+      showNotification(`Needs ${cost} Hearts to unlock this private thought! ❤️`, 'hearts');
+      onOpenShop();
+      return;
+    }
+
+    const success = spendHearts(cost);
+    if (success) {
+      setMessages(prev => {
+        const updated = prev.map(m => m.id === msgId ? { ...m, isLocked: false } : m);
+        // Resave the unlocked version
+        const unlockedMsg = updated.find(m => m.id === msgId);
+        if (unlockedMsg) storage.saveMessage(persona.id, { ...unlockedMsg, timestamp: unlockedMsg.timestamp.toISOString() });
+        return updated;
+      });
+      showNotification("Letter Unlocked! ✨", 'success');
     }
   };
 
@@ -127,16 +188,33 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
     <div className={`fixed inset-0 z-50 flex flex-col ${isDarkMode ? 'bg-[#0B0E14] text-white' : 'bg-[#FDF2F8] text-[#4A2040]'}`}>
       <div className={`fixed inset-0 z-50 flex flex-col ${isDarkMode ? 'bg-[#0B0E14] text-white' : 'bg-[#FDF2F8] text-[#4A2040]'} sm:max-w-[640px] sm:mx-auto`}>
         {/* Header */}
-        <header className={`p-4 border-b flex items-center justify-between ${isDarkMode ? 'bg-[#0B0E14] border-white/10' : 'bg-white border-pink-100'}`}>
+        <header className={`px-4 py-3 flex items-center justify-between border-b ${isDarkMode ? 'bg-[#0B0E14] border-white/5' : 'bg-white border-pink-100 shadow-sm'} z-20`}>
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="p-2"><ArrowLeft size={20} /></button>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-pink-200 overflow-hidden border-2 border-white">
-                <img src={persona.avatarUrl} alt={persona.name} className="w-full h-full object-cover" />
+            <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img src={persona.avatarUrl} alt={persona.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-pink-500/20" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-[#0B0E14] rounded-full"></div>
               </div>
-              <div>
-                <h2 className="font-bold text-sm">{persona.name}</h2>
-                <span className="text-[10px] opacity-60 italic">Online</span>
+              <div className="flex flex-col">
+                <span className="font-bold text-[15px] leading-tight flex items-center gap-1.5">
+                  {persona.name}
+                  <span className="text-[10px] px-1.5 py-0.5 bg-pink-500/10 text-pink-500 rounded-md uppercase font-black tracking-tighter">
+                    {currentMood}
+                  </span>
+                </span>
+                {/* Relationship Bar */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-20 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-1000 ${level.color}`}
+                      style={{ width: `${progressPercent}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-[9px] font-black uppercase tracking-widest opacity-40">{level.label}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -164,11 +242,30 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
                   ? 'bg-red-50 border border-red-200 text-red-600 text-xs'
                   : isDarkMode ? 'bg-white/10 text-white rounded-bl-none' : 'bg-white text-[#4A2040] rounded-bl-none border border-pink-50'
                 }`}>
-                {msg.text}
-                {msg.audioUrl && (
-                  <div className="mt-3 pt-3 border-t border-white/10">
-                    <audio controls src={msg.audioUrl} className="h-8 w-full max-w-[200px]" />
+                {msg.isLocked ? (
+                  <div className="flex flex-col items-center gap-2 py-4 px-2">
+                    <div className="p-3 bg-pink-500/20 rounded-full animate-pulse">
+                      <LockIcon size={24} className="text-pink-500" />
+                    </div>
+                    <p className="text-[12px] font-bold text-center opacity-80 leading-snug">
+                      "{persona.name} sent a private thought..."
+                    </p>
+                    <button
+                      onClick={() => handleUnlockMessage(msg.id)}
+                      className="mt-2 px-4 py-2 bg-pink-500 text-white rounded-xl text-[11px] font-black shadow-lg shadow-pink-500/20 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                      <Heart size={12} fill="white" /> UNLOCK (5 HEARTS)
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    {msg.text}
+                    {msg.audioUrl && (
+                      <div className="mt-3 pt-3 border-t border-white/10">
+                        <audio controls src={msg.audioUrl} className="h-8 w-full max-w-[200px]" />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <span className="text-[9px] opacity-40 mt-1 px-1">
@@ -221,18 +318,25 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
               ? 'bg-white/5 border-white/10 focus-within:border-pink-500/50'
               : 'bg-white border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
               }`}>
-              <input
+              <textarea
+                ref={textareaRef}
+                rows={1}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={`Write something to ${persona.name}...`}
-                className="flex-1 bg-transparent text-[15px] font-medium placeholder:opacity-40 p-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder={`Write to ${persona.name}...`}
+                className="flex-1 bg-transparent text-[15px] font-medium placeholder:opacity-40 p-0 resize-none min-h-[22px] max-h-[120px] py-1"
                 style={{
                   color: isDarkMode ? 'white' : '#4A2040',
                   outline: 'none',
                   border: 'none',
                   boxShadow: 'none',
-                  WebkitAppearance: 'none'
+                  overflowY: (textareaRef.current?.scrollHeight || 0) > 120 ? 'auto' : 'hidden'
                 }}
               />
             </div>
@@ -249,6 +353,29 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
               <Send size={22} fill="currentColor" strokeWidth={2.5} />
             </button>
           </div>
+
+          {/* 🔥 Impulse Buy (Low Hearts Hook) */}
+          {(profile.hearts ?? 0) <= 2 && profile.subscription === 'free' && (
+            <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-gradient-to-r from-yellow-100 to-pink-100 dark:from-yellow-900/40 dark:to-pink-900/40 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700/50 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-400 rounded-xl shadow-sm">
+                    <Sparkles size={18} className="text-black" />
+                  </div>
+                  <div>
+                    <h4 className="text-[13px] font-bold">Low on Hearts? 💔</h4>
+                    <p className="text-[10px] opacity-70 font-semibold uppercase tracking-tight">Flash Sale: 50 Hearts for ₹49 (80% Off)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onOpenShop}
+                  className="px-4 py-2 bg-black text-white dark:bg-pink-500 text-[11px] font-black rounded-xl active:scale-95 transition-all shadow-lg"
+                >
+                  GET NOW
+                </button>
+              </div>
+            </div>
+          )}
         </footer>
       </div>
     </div>

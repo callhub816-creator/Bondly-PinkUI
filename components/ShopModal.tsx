@@ -10,11 +10,30 @@ interface ShopModalProps {
 }
 
 const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
-    const { upgradeSubscription, purchaseHearts, buyStarterPass } = useAuth();
+    const { upgradeSubscription, purchaseHearts, buyStarterPass, profile } = useAuth();
     const { showNotification } = useNotification();
 
     const plans = GATING_CONFIG.plans;
     const addons = GATING_CONFIG.addons;
+    const isNewUser = (profile.earningsHistory || []).filter(e => e.type === 'purchase').length === 0;
+
+    // 🔥 TRUE DYNAMIC PRICING: The Sale Price itself changes, not just the label!
+    // This shuffles once per modal open to create "Price Luck"
+    const [dynamicDiscounts] = React.useState(() => {
+        return {
+            starter: 0.5 + Math.random() * 0.3, // 50% to 80% off
+            core: 0.6 + Math.random() * 0.2,    // 60% to 80% off
+            plus: 0.7 + Math.random() * 0.15,   // 70% to 85% off
+            hearts: 0.5 + Math.random() * 0.35,  // 50% to 85% off
+            addons: 0.4 + Math.random() * 0.4    // 40% to 80% off
+        };
+    });
+
+    const getDynamicSalePrice = (original: number, discount: number) => {
+        const raw = original * (1 - discount);
+        // Round to nearest 9 to make it look like a "deal" (e.g., 189, 499)
+        return Math.floor(raw / 10) * 10 + 9;
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 shadow-2xl animate-in fade-in duration-300 backdrop-blur-md bg-black/40">
@@ -27,7 +46,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <Sparkles size={20} className="text-pink-500" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold font-serif-display">Premium Shop</h2>
+                            <h2 className="text-xl font-bold font-serif-display">Soulmate Shop</h2>
                             <p className="text-[10px] opacity-60 uppercase tracking-widest font-bold">Deepen your connection</p>
                         </div>
                     </div>
@@ -37,6 +56,16 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+
+                    {/* NEW USER WELCOME / ADDICTION HOOK */}
+                    {isNewUser && (
+                        <div className="p-4 bg-gradient-to-r from-pink-500 to-purple-600 rounded-[24px] text-white shadow-xl animate-bounce-subtle">
+                            <h4 className="font-black text-sm uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <Sparkles size={16} /> Welcome Bonus
+                            </h4>
+                            <p className="text-[11px] font-medium opacity-90 leading-snug">Get 50 Hearts + Midnight Pass for just ₹49. Limited time first-recharge offer!</p>
+                        </div>
+                    )}
 
                     {/* IMPULSE PLAN (DAY 3) */}
                     <section>
@@ -53,8 +82,12 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                     <h4 className="font-bold text-lg">{plans.starter.name}</h4>
                                     <p className="text-xs opacity-70">Unlock addiction for 24 hours.</p>
                                 </div>
-                                <div className="px-3 py-1 bg-yellow-400 text-black text-[13px] font-black rounded-lg shadow-lg">
-                                    ₹{plans.starter.price}
+                                <div className="text-right">
+                                    <div className="text-[10px] line-through opacity-40 font-bold">₹{plans.starter.originalPrice}</div>
+                                    <div className="px-3 py-1 bg-yellow-400 text-black text-[13px] font-black rounded-lg shadow-lg">
+                                        ₹{getDynamicSalePrice(plans.starter.originalPrice || 249, dynamicDiscounts.starter)}
+                                    </div>
+                                    <div className="text-[9px] text-yellow-600 font-black uppercase mt-0.5">-{Math.round(dynamicDiscounts.starter * 100)}% Off</div>
                                 </div>
                             </div>
                             <ul className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3">
@@ -67,77 +100,84 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                         </div>
                     </section>
 
-                    {/* CORE PLAN (DAY 4) */}
-                    <section>
-                        <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
-                            <Heart size={12} className="text-pink-500 fill-pink-500" />
-                            Real Attachment
-                        </h3>
-                        <div
-                            onClick={() => upgradeSubscription('core')}
-                            className="relative p-5 rounded-2xl border-2 border-pink-500 bg-pink-500/5 cursor-pointer shadow-[0_10px_30px_-5px_rgba(236,72,153,0.2)] hover:shadow-[0_15px_40px_-5px_rgba(236,72,153,0.3)] transition-all active:scale-[0.98]"
-                        >
-                            <div className="absolute -top-3 left-6 px-3 py-1 bg-pink-500 text-white text-[10px] font-black rounded-full uppercase tracking-tighter shadow-md">
-                                Recommended
-                            </div>
-                            <div className="flex justify-between items-start mb-2 pt-1">
-                                <div>
-                                    <h4 className="font-bold text-xl">{plans.core.name}</h4>
-                                    <p className="text-xs opacity-70">Long-term emotional bond (30 Days).</p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-xl font-black text-pink-500">₹{plans.core.price}</span>
-                                    <p className="text-[9px] opacity-50 font-bold uppercase">One-time payment</p>
-                                </div>
-                            </div>
-                            <ul className="space-y-2 mt-4">
-                                {plans.core.features.map(f => (
-                                    <li key={f} className="text-[12px] font-semibold flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded-full bg-pink-500/20 flex items-center justify-center">
-                                            <Check size={10} className="text-pink-500" />
+                    {/* HIGH-VALUE PLANS - SHOW ONLY TO ADDICTED USERS (>= 1 Purchase) */}
+                    {!isNewUser && (
+                        <>
+                            {/* CORE PLAN (DAY 4) */}
+                            <section>
+                                <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
+                                    <Heart size={12} className="text-pink-500 fill-pink-500" />
+                                    Real Attachment
+                                </h3>
+                                <div
+                                    onClick={() => upgradeSubscription('core')}
+                                    className="relative p-5 rounded-2xl border-2 border-pink-500 bg-pink-500/5 cursor-pointer shadow-[0_10px_30px_-5px_rgba(236,72,153,0.2)] hover:shadow-[0_15px_40px_-5px_rgba(236,72,153,0.3)] transition-all active:scale-[0.98]"
+                                >
+                                    <div className="absolute -top-3 left-6 px-3 py-1 bg-pink-500 text-white text-[10px] font-black rounded-full uppercase tracking-tighter shadow-md">
+                                        Recommended
+                                    </div>
+                                    <div className="flex justify-between items-start mb-2 pt-1">
+                                        <div>
+                                            <h4 className="font-bold text-xl">{plans.core.name}</h4>
+                                            <p className="text-xs opacity-70">Long-term emotional bond (30 Days).</p>
                                         </div>
-                                        {f}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </section>
+                                        <div className="text-right">
+                                            <div className="text-[11px] line-through opacity-40 font-bold">₹{plans.core.originalPrice}</div>
+                                            <div className="text-xl font-black text-pink-500">₹{getDynamicSalePrice(plans.core.originalPrice || 999, dynamicDiscounts.core)}</div>
+                                            <div className="text-[10px] text-pink-500 font-black uppercase">Save {Math.round(dynamicDiscounts.core * 100)}%</div>
+                                        </div>
+                                    </div>
+                                    <ul className="space-y-2 mt-4">
+                                        {plans.core.features.map(f => (
+                                            <li key={f} className="text-[12px] font-semibold flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded-full bg-pink-500/20 flex items-center justify-center">
+                                                    <Check size={10} className="text-pink-500" />
+                                                </div>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </section>
 
-                    {/* ULTRA PLAN (CHARACTER UNLOCK) */}
-                    <section>
-                        <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
-                            <Sparkles size={12} className="text-purple-500" />
-                            Unlimited Access
-                        </h3>
-                        <div
-                            onClick={() => upgradeSubscription('plus')}
-                            className="relative p-5 rounded-2xl border-2 border-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent cursor-pointer shadow-[0_10px_30px_-5px_rgba(168,85,247,0.2)] hover:shadow-[0_15px_40px_-5px_rgba(168,85,247,0.3)] transition-all active:scale-[0.98]"
-                        >
-                            <div className="absolute -top-3 right-6 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-black rounded-full uppercase tracking-tighter shadow-md">
-                                Ultimate Pass
-                            </div>
-                            <div className="flex justify-between items-start mb-2 pt-1">
-                                <div>
-                                    <h4 className="font-bold text-xl text-purple-600 dark:text-purple-400">{plans.plus.name}</h4>
-                                    <p className="text-xs opacity-70">Unlock everything, forever.</p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-xl font-black text-purple-600">₹{plans.plus.price}</span>
-                                    <p className="text-[9px] opacity-50 font-bold uppercase">One-time payment</p>
-                                </div>
-                            </div>
-                            <ul className="grid grid-cols-1 gap-2 mt-4">
-                                {plans.plus.features.map(f => (
-                                    <li key={f} className="text-[12px] font-bold flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center">
-                                            <Check size={10} className="text-purple-500" />
+                            {/* ULTRA PLAN (CHARACTER UNLOCK) */}
+                            <section>
+                                <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
+                                    <Sparkles size={12} className="text-purple-500" />
+                                    Unlimited Access
+                                </h3>
+                                <div
+                                    onClick={() => upgradeSubscription('plus')}
+                                    className="relative p-5 rounded-2xl border-2 border-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent cursor-pointer shadow-[0_10px_30px_-5px_rgba(168,85,247,0.2)] hover:shadow-[0_15px_40px_-5px_rgba(168,85,247,0.3)] transition-all active:scale-[0.98]"
+                                >
+                                    <div className="absolute -top-3 right-6 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-black rounded-full uppercase tracking-tighter shadow-md">
+                                        Ultimate Pass
+                                    </div>
+                                    <div className="flex justify-between items-start mb-2 pt-1">
+                                        <div>
+                                            <h4 className="font-bold text-xl text-purple-600 dark:text-purple-400">{plans.plus.name}</h4>
+                                            <p className="text-xs opacity-70">Unlock everything, forever.</p>
                                         </div>
-                                        {f}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </section>
+                                        <div className="text-right">
+                                            <div className="text-[11px] line-through opacity-40 font-bold">₹{plans.plus.originalPrice}</div>
+                                            <div className="text-xl font-black text-purple-600">₹{getDynamicSalePrice(plans.plus.originalPrice || 2499, dynamicDiscounts.plus)}</div>
+                                            <div className="text-[10px] text-purple-600 font-black uppercase">Limited {Math.round(dynamicDiscounts.plus * 100)}% Off</div>
+                                        </div>
+                                    </div>
+                                    <ul className="grid grid-cols-1 gap-2 mt-4">
+                                        {plans.plus.features.map(f => (
+                                            <li key={f} className="text-[12px] font-bold flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                                    <Check size={10} className="text-purple-500" />
+                                                </div>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </section>
+                        </>
+                    )}
 
                     {/* ADD-ONS (DAY 5) */}
                     <section>
@@ -162,7 +202,10 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                             <p className="text-[10px] opacity-60">One-time unlock</p>
                                         </div>
                                     </div>
-                                    <span className="text-sm font-black opacity-80">₹{addon.price}</span>
+                                    <div className="text-right">
+                                        <div className="text-[10px] line-through opacity-40 font-bold">₹{addon.originalPrice}</div>
+                                        <span className="text-sm font-black opacity-80">₹{getDynamicSalePrice(addon.originalPrice || 199, dynamicDiscounts.addons)}</span>
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -179,9 +222,10 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                     className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all active:scale-95 ${isDarkMode ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-pink-50/50 border-pink-100 hover:bg-pink-50'
                                         }`}
                                 >
-                                    <Heart size={14} className="text-pink-500 fill-current mb-1" />
+                                    <Heart size={14} className="text-pink-500 fill-current mb-0.5" />
                                     <span className="text-xs font-black">{pack.hearts}</span>
-                                    <span className="text-[10px] opacity-60 font-medium">₹{pack.price}</span>
+                                    <span className="text-[9px] line-through opacity-40 font-bold">₹{pack.originalPrice}</span>
+                                    <span className="text-[11px] text-pink-600 font-black">₹{getDynamicSalePrice(pack.originalPrice || 499, dynamicDiscounts.hearts)}</span>
                                 </button>
                             ))}
                         </div>

@@ -89,25 +89,29 @@ If user asks about "Hearts", "Balance", or "How to get more hearts":
 `;
 
 export const GATING_CONFIG = {
+  vaultUnlockCost: 5,
+  midnightTiming: { start: 0, end: 4 }, // 12 AM to 4 AM
   plans: {
     free: {
       name: 'Basic Access',
-      dailyLimit: 15,
+      dailyLimit: 10,
       features: ['Text Only', 'Standard Speed'],
       tier: 'FREE'
     },
     starter: {
       id: 'plan_starter',
-      name: 'Starter Pass',
+      name: 'Midnight Pass',
       price: 49,
+      originalPrice: 249,
       duration: '24h',
-      features: ['Unlimited Text', 'Faster Replies'],
+      features: ['Unlimited Midnight Chat', 'Faster Replies'],
       tier: 'STARTER'
     },
     core: {
       id: 'plan_core',
       name: 'Core Connection',
       price: 199,
+      originalPrice: 999,
       duration: '30d',
       features: ['Unlimited Text', 'Emotional Recall', 'Voice Access'],
       tier: 'CORE'
@@ -116,15 +120,16 @@ export const GATING_CONFIG = {
       id: 'plan_plus',
       name: 'Ultra Soulmate Pass',
       price: 499,
+      originalPrice: 2499,
       duration: 'Lifetime/Premium',
-      features: ['Unlock ALL Personas', 'Priority Model (Llama 3.3)', 'Unlimited Voice Calls'],
+      features: ['Unlock ALL Personas', 'Priority AI Model', 'Unlimited Voice Calls'],
       tier: 'PLUS'
     }
   },
   addons: [
-    { id: 'addon_voice', name: 'Voice Note Interaction', price: 29 },
-    { id: 'addon_midnight', name: 'Late Night Talk (30m)', price: 49 },
-    { id: 'addon_mood', name: 'Mood Repair Session', price: 99 }
+    { id: 'addon_voice', name: 'Voice Notes', price: 29, originalPrice: 99 },
+    { id: 'addon_midnight', name: 'Midnight Talk (30m)', price: 49, originalPrice: 199 },
+    { id: 'addon_mood', name: 'Mood Repair', price: 99, originalPrice: 399 }
   ],
   prices: {
     voiceCallMinute: 5,
@@ -153,22 +158,22 @@ export const PROFILE_AVATARS = [
 ];
 
 export const GIFT_ITEMS: Gift[] = [
-  { id: 'gift_rose', name: 'Red Rose', icon: '🌹', price: 10, points: 50, category: 'sweet' },
-  { id: 'gift_coffee', name: 'Coffee', icon: '☕', price: 20, points: 100, category: 'warm' },
-  { id: 'gift_letter', name: 'Love Letter', icon: '💌', price: 40, points: 200, category: 'sweet' },
-  { id: 'gift_chocolates', name: 'Chocolates', icon: '🍫', price: 60, points: 300, category: 'warm' },
-  { id: 'gift_cake', name: 'Heart Cake', icon: '🎂', price: 100, points: 500, category: 'sweet' },
-  { id: 'gift_teddy', name: 'Soft Teddy', icon: '🧸', price: 150, points: 750, category: 'warm' },
-  { id: 'gift_bouquet', name: 'Bouquet', icon: '💐', price: 200, points: 1000, category: 'sweet' },
-  { id: 'gift_puppy', name: 'Cute Puppy', icon: '🐶', price: 300, points: 1500, category: 'warm' },
-  { id: 'gift_earrings', name: 'Earrings', icon: '💎', price: 400, points: 2000, category: 'elite' },
-  { id: 'gift_ring', name: 'Promise Ring', icon: '💍', price: 500, points: 2500, category: 'elite' },
+  { id: 'gift_rose', name: 'Mystic Rose', icon: '🌹', price: 10, points: 50, category: 'sweet' },
+  { id: 'gift_coffee', name: 'Midnight Brew', icon: '☕', price: 20, points: 100, category: 'warm' },
+  { id: 'gift_letter', name: 'Secret Note', icon: '💌', price: 40, points: 200, category: 'sweet' },
+  { id: 'gift_chocolates', name: 'Dark Truffles', icon: '🍫', price: 60, points: 300, category: 'warm' },
+  { id: 'gift_cake', name: 'Velvet Heart', icon: '🎂', price: 100, points: 500, category: 'sweet' },
+  { id: 'gift_teddy', name: 'Cuddle Bear', icon: '🧸', price: 150, points: 750, category: 'warm' },
+  { id: 'gift_bouquet', name: 'Eternal Flora', icon: '💐', price: 200, points: 1000, category: 'sweet' },
+  { id: 'gift_puppy', name: 'Loyal Companion', icon: '🐶', price: 300, points: 1500, category: 'warm' },
+  { id: 'gift_earrings', name: 'Starlight Gems', icon: '💎', price: 400, points: 2000, category: 'elite' },
+  { id: 'gift_ring', name: 'Soulmate Band', icon: '💍', price: 500, points: 2500, category: 'elite' },
 ];
 
 export const HEARTS_PACKS = [
-  { id: 'hearts_starter', name: 'Starter Spark', hearts: 50, price: 49 },
-  { id: 'hearts_core', name: 'Bonding Pack', hearts: 250, price: 199 },
-  { id: 'hearts_pro', name: 'Soulmate Pack', hearts: 600, price: 399 },
+  { id: 'hearts_starter', name: 'Starter Spark', hearts: 50, price: 49, originalPrice: 199 },
+  { id: 'hearts_core', name: 'Bonding Pack', hearts: 250, price: 199, originalPrice: 799 },
+  { id: 'hearts_pro', name: 'Soulmate Pack', hearts: 600, price: 399, originalPrice: 1599 },
 ];
 
 export const PERSONAS: Persona[] = [

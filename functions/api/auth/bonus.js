@@ -54,31 +54,58 @@ export async function onRequestPost({ request, env }) {
             }
         }
 
-        // 3. Update Wallet & Log
-        const bonusAmount = 10;
+        // 3. ✨ DYNAMIC BONUS & STREAK LOGIC
+        const bonusAmount = Math.floor(Math.random() * 10) + 1; // 1 to 10 hearts
+        const nowMs = new Date().getTime();
         const nowIso = new Date().toISOString();
+
+        // Fetch current user data for profile sync
+        const userRow = await env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first();
+        let profile = JSON.parse(userRow.profile_data || "{}");
+
+        // Calculate Streak
+        let currentStreak = profile.streakCount || 0;
+        if (lastBonus) {
+            const timeElapsed = nowMs - new Date(lastBonus.created_at).getTime();
+            if (timeElapsed >= 24 * 60 * 60 * 1000 && timeElapsed < 48 * 60 * 60 * 1000) {
+                currentStreak += 1; // Consecutive day
+            } else if (timeElapsed >= 48 * 60 * 60 * 1000) {
+                currentStreak = 1; // Reset due to gap
+            }
+        } else {
+            currentStreak = 1; // First time
+        }
+
+        profile.streakCount = currentStreak;
+        profile.lastDailyBonusClaim = nowIso;
 
         // Get current wallet
         const wallet = await env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first();
         const newBalance = (wallet?.hearts || 0) + bonusAmount;
+        profile.hearts = newBalance;
 
         await env.DB.batch([
             // Update Wallet
             env.DB.prepare("UPDATE wallets SET hearts = ?, total_earned = total_earned + ?, updated_at = ? WHERE user_id = ?")
                 .bind(newBalance, bonusAmount, nowIso, userId),
 
+            // Update User Profile Data (Streak & Last Claim)
+            env.DB.prepare("UPDATE users SET profile_data = ?, updated_at = ? WHERE id = ?")
+                .bind(JSON.stringify(profile), nowIso, userId),
+
             // Audit Log
             env.DB.prepare("INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, bonusAmount, 'bonus', 'daily_bonus', ip, nowIso),
+                .bind(crypto.randomUUID(), userId, bonusAmount, 'bonus', 'lucky_box', ip, nowIso),
 
             // Event Log
             env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, 'claim_bonus', JSON.stringify({ amount: bonusAmount }), nowIso)
+                .bind(crypto.randomUUID(), userId, 'claim_bonus', JSON.stringify({ amount: bonusAmount, streak: currentStreak }), nowIso)
         ]);
 
         return new Response(JSON.stringify({
             success: true,
-            profile: { hearts: newBalance, subscription: 'FREE' } // Frontend expects this structure
+            amount: bonusAmount,
+            profile: profile
         }), { headers: { "Content-Type": "application/json" } });
 
     } catch (err) {

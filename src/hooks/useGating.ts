@@ -29,8 +29,10 @@ export const useGating = () => {
 
     const isNightTimeLocked = () => {
         const hour = new Date().getHours();
-        // 11 PM (23) to 4 AM (4)
-        const isNight = hour >= 23 || hour < 4;
+        // Uses timing from constants (usually 0-4 AM)
+        const start = GATING_CONFIG.midnightTiming.start;
+        const end = GATING_CONFIG.midnightTiming.end;
+        const isNight = hour >= start && hour < end;
 
         if (!isNight) return false;
 

@@ -19,10 +19,54 @@ import ErrorBoundary from './components/ErrorBoundary';
 import PersonaCreationModal from './components/PersonaCreationModal';
 import ShopModal from './components/ShopModal';
 import ProfileModal from './components/ProfileModal';
-import { Sparkles, Heart, Phone, Lock, Trash2, MessageCircle, Shield, User } from 'lucide-react';
+import { Sparkles, Heart, Phone, Lock, Trash2, MessageCircle, Shield, User, Gift } from 'lucide-react';
 import { ModeCardData, Persona } from './types';
 import { PERSONAS, MODE_CARDS } from './constants';
 import { storage } from './utils/storage';
+
+const DailyBonusNudge: React.FC = () => {
+  const { profile, claimDailyBonus } = useAuth();
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!profile.lastDailyBonusClaim) {
+      setIsVisible(true);
+      return;
+    }
+    const lastClaim = new Date(profile.lastDailyBonusClaim).getTime();
+    const now = Date.now();
+    if (now - lastClaim >= 24 * 60 * 60 * 1000) {
+      setIsVisible(true);
+    }
+  }, [profile?.lastDailyBonusClaim]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[90%] max-w-sm animate-in slide-in-from-bottom-10 duration-700">
+      <div className="bg-white/80 backdrop-blur-xl border-2 border-pink-200 p-4 rounded-[28px] shadow-2xl flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl shadow-lg animate-bounce">
+            <Gift className="text-white" size={20} />
+          </div>
+          <div>
+            <h4 className="text-[14px] font-black text-pink-600">Daily Lucky Box! 🎁</h4>
+            <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Get 1-10 Hearts free</p>
+          </div>
+        </div>
+        <button
+          onClick={async () => {
+            const success = await claimDailyBonus();
+            if (success) setIsVisible(false);
+          }}
+          className="px-5 py-2.5 bg-pink-500 text-white text-[12px] font-black rounded-xl shadow-lg active:scale-90 transition-all"
+        >
+          CLAIM
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface ChatSession {
   persona: Persona;
@@ -245,6 +289,8 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen w-full bg-[#FDF2F8] relative overflow-x-hidden font-sans transition-colors duration-500">
 
+      {/* Daily Bonus Nudge */}
+      {!activeChatSession && user && <DailyBonusNudge />}
 
       {/* Floating Header Actions */}
       {!activeChatSession && user && (

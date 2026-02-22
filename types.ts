@@ -54,6 +54,7 @@ export interface UserProfile {
   midnightPassExpiry?: string; // ISO date for expiration
   sessionsCount?: number; // To track retention nudges logic
   lastDailyBonusClaim?: string; // ISO date
+  streakCount: number; // For Ignite Streak logic
   earningsHistory: EarningRecord[];
 }
 

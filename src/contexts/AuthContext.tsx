@@ -445,7 +445,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.success && data.profile) {
         setProfile(data.profile);
         storage.saveProfile(data.profile);
-        showNotification(`Daily bonus claimed! +10 Hearts added. ❤️`, 'success');
+
+        // Random message for Lucky Box feel
+        const rewards = data.amount || 1;
+        const streak = data.profile.streakCount || 1;
+        showNotification(`Lucky Box! 🎁 +${rewards} Hearts added. Current Streak: 🔥 ${streak} Days`, 'success');
         return true;
       }
       return false;
