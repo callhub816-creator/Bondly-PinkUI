@@ -111,7 +111,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, displayName, password, profileData: currentProfile })
       });
-      const data = await res.json();
+
+      const contentType = res.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Server Error: ${res.status}`);
+      }
+
       if (!res.ok) throw new Error(data.error || 'Signup failed');
 
       setUser(data.user);

@@ -118,6 +118,13 @@ export async function onRequestPost({ request, env }) {
         });
 
     } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        console.error("Signup Error:", err.message);
+        return new Response(JSON.stringify({
+            error: "Server Error: " + err.message,
+            stack: err.stack
+        }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
     }
 }
