@@ -99,11 +99,26 @@ const AppContent: React.FC = () => {
   };
 
   const [isDarkMode, setIsDarkMode] = useState(checkIsNight());
-  const [currentPage, setCurrentPage] = useState<'home' | 'about' | 'privacy' | 'terms' | 'faq' | 'safety' | 'refund' | 'admin' | 'guest-chat'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'about' | 'privacy' | 'terms' | 'faq' | 'safety' | 'refund' | 'admin' | 'guest-chat' | 'auth'>('home');
   const { user, profile, loading } = useAuth();
   const galleryRef = useRef<HTMLDivElement>(null);
   const vibeRef = useRef<HTMLDivElement>(null);
 
+  const [activeCallPersona, setActiveCallPersona] = useState<Persona | null>(null);
+  const [activeCallAvatarUrl, setActiveCallAvatarUrl] = useState<string | undefined>(undefined);
+  const [activeChatSession, setActiveChatSession] = useState<ChatSession | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<{ persona: Persona, avatarUrl?: string } | null>(null);
+  const [selectedCreationMode, setSelectedCreationMode] = useState<ModeCardData | null>(null);
+  const [isShopOpen, setIsShopOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Sync with URL for /login and /signup
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/login' || path === '/signup') {
+      setCurrentPage('auth');
+    }
+  }, []);
   // Auto-update theme every minute
   useEffect(() => {
     const interval = setInterval(() => {
@@ -131,38 +146,12 @@ const AppContent: React.FC = () => {
     }
   }, [showNotification]);
 
-  // Apply Theme Class - REMOVED GLOBAL TOGGLE
-  // We only want specific components (ChatScreen) to have the night feel "all time" or scoped.
-  // The 'dark' class on documentElement affects the whole app, which we want to avoid.
-  /*
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-  */
-
   const scrollToGallery = () => galleryRef.current?.scrollIntoView({ behavior: 'smooth' });
   const scrollToVibe = () => vibeRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   const [systemPersonas, setSystemPersonas] = useState<Persona[]>(
     Array.isArray(PERSONAS) ? PERSONAS.filter(p => !p?.launchHidden) : []
   );
-
-  const [activeCallPersona, setActiveCallPersona] = useState<Persona | null>(null);
-  const [activeCallAvatarUrl, setActiveCallAvatarUrl] = useState<string | undefined>(undefined);
-  const [activeChatSession, setActiveChatSession] = useState<ChatSession | null>(null);
-  const [viewingProfile, setViewingProfile] = useState<{ persona: Persona, avatarUrl?: string } | null>(null);
-  const [selectedCreationMode, setSelectedCreationMode] = useState<ModeCardData | null>(null);
-  const [isShopOpen, setIsShopOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-
-  // REMOVED GLOBAL ALERT - Now handled in ChatScreen per persona
-
-
-
   const handleUpdatePersonaImage = (id: string | number, imageUrl: string | undefined) => {
     setSystemPersonas(prev => prev.map(p =>
       p.id === id ? { ...p, avatarUrl: imageUrl } : p
@@ -227,6 +216,10 @@ const AppContent: React.FC = () => {
   };
 
   const startChat = (persona: Persona, avatarUrl?: string) => {
+    if (!user) {
+      setCurrentPage('auth');
+      return;
+    }
     setActiveChatSession({ persona, avatarUrl });
     setViewingProfile(null);
   };
@@ -268,12 +261,17 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!user && currentPage === 'home') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">Authentication is disabled in development mode.</p>
-      </div>
-    );
+  // Auto-redirect to home when user logs in successfully
+  useEffect(() => {
+    if (user && currentPage === 'auth') {
+      setCurrentPage('home');
+      // Reset URL to clean home path
+      window.history.pushState({}, '', '/');
+    }
+  }, [user, currentPage]);
+
+  if (currentPage === 'auth') {
+    return <AuthScreen />;
   }
 
   if (currentPage === 'guest-chat') {
