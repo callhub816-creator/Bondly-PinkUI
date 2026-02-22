@@ -11,16 +11,16 @@ This document combines all essential project documentation, including operations
 **Goal:** Generate sustainable revenue via AI Companionship (India Market).
 
 ### 🛡️ Executive Summary
-CallHub is a premium AI conversational platform designed for emotional well-being and companionship. Built with a "Razorpay-First" mindset, the platform uses a "Safe Wording" strategy (Mental Wellness/Entertainment) to ensure payment gateway approval while delivering deep, personal engagement through advanced LLM technology.
+Bondly is a premium AI conversational platform designed for emotional well-being and companionship. Built with a "Razorpay-First" mindset, the platform uses a "Safe Wording" strategy (Mental Wellness/Entertainment) to ensure payment gateway approval while delivering deep, personal engagement through advanced LLM technology.
 
 ### 🔒 Core Configuration
-- **Domain:** [callhub.in](https://callhub.in)
+- **Domain:** [bondly.online](https://bondly.online)
 - **Primary AI Model:** SambaNova LLaMA 3.3 70B (High-quality, Hinglish optimized)
 - **Architecture:** Hybrid storage. Payments and subscriptions are server-verified. Non-critical session data may use client-side storage.
 - **Key Rotation:** `sambaRotator` (Supports multi-key pool for rate-limit resilience).
 
 ### 💰 Monetization Engine
-CallHub operates on a "Soft-Hook" monetization philosophy:
+Bondly operates on a "Soft-Hook" monetization philosophy:
 1.  **Emotional Currency (Hearts):** Used to unlock "Locked Letters" and send gifts.
 2.  **The Vault (Locked Letters):** Triggered every 8–12 messages. High-value emotional content requires Hearts to unlock.
 3.  **Midnight Lock (₹99 Pass):** Gating from 10 PM – 4 AM. Free users must buy a "Midnight Pass" or subscribe.
@@ -36,7 +36,7 @@ CallHub operates on a "Soft-Hook" monetization philosophy:
 - **Required Footer Data:** (Already Implemented)
     - Business Address (Bengaluru, India)
     - Pricing Table (Weekly/Monthly)
-    - Support Email (support@callhub.in)
+    - Support Email (support@bondly.online)
     - Legal Links (Privacy, Terms, Refund)
 
 ### 🚀 Quality & Retention Features
@@ -77,7 +77,7 @@ CallHub operates on a "Soft-Hook" monetization philosophy:
 
 ### 🎨 Medium Priority (User Experience)
 - **Midnight Mode (Full UI):** Update hardcoded colors in `ChatScreen.tsx` with Tailwind `dark:` classes.
-- **Realtime Typing Indicators:** Implement via Supabase channels or efficient polling.
+- **Realtime Typing Indicators:** Implement via Ably/Pusher or efficient polling.
 
 ### 📈 Low Priority (Growth & SEO)
 - **AdSense Approval Prep:** Missing script placeholders in `index.html`.

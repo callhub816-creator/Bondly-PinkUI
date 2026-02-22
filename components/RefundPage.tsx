@@ -64,8 +64,8 @@ const RefundPage: React.FC<PageProps> = ({ onBack }) => {
                     </div>
                     <p className="opacity-90 mb-4">We are here to resolve any billing issues within 24 hours.</p>
                     <div className="space-y-2">
-                        <a href="mailto:support@Bondly.in" className="text-[#B28DFF] font-medium hover:underline block">
-                            Email: support@Bondly.in
+                        <a href="mailto:support@bondly.online" className="text-[#B28DFF] font-medium hover:underline block">
+                            Email: support@bondly.online
                         </a>
                     </div>
                 </section>

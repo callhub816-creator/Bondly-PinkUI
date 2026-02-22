@@ -1,4 +1,4 @@
-// TRIGGER DEPLOY: SYNCING UI TO DOMAIN (CALLHUB.IN) - FEB 4, 2026
+// TRIGGER DEPLOY: SYNCING UI TO DOMAIN (BONDLY.ONLINE) - FEB 4, 2026
 
 import React, { useState, useRef, useEffect } from 'react';
 
@@ -78,7 +78,7 @@ const AppContent: React.FC = () => {
     }
 
     // Welcome back notification
-    const rawUserInfo = localStorage.getItem('callhub_user_info');
+    const rawUserInfo = localStorage.getItem('bondly_user_info');
     if (rawUserInfo) {
       const userInfo = JSON.parse(rawUserInfo);
       setTimeout(() => {
@@ -225,7 +225,11 @@ const AppContent: React.FC = () => {
   }
 
   if (!user && currentPage === 'home') {
-    return <AuthScreen />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <p className="text-gray-500">Authentication is disabled in development mode.</p>
+      </div>
+    );
   }
 
   if (currentPage === 'guest-chat') {
@@ -391,7 +395,7 @@ const AppContent: React.FC = () => {
                 { label: 'Terms', action: () => setCurrentPage('terms') },
                 { label: 'Safety', action: () => setCurrentPage('safety') },
                 { label: 'Refund', action: () => setCurrentPage('refund') },
-                { label: 'Contact Us', href: 'mailto:support@callhub.in' }
+                { label: 'Contact Us', href: 'mailto:support@bondly.online' }
               ].map((link) => (
                 link.href ? (
                   <a key={link.label} href={link.href} className="hover:underline underline-offset-4 decoration-[#B28DFF]/40 transition-all">
@@ -412,7 +416,7 @@ const AppContent: React.FC = () => {
 
             {/* Line 3: Legal */}
             <p className="text-[10px] font-medium text-[#4A2040]/50 tracking-tight">
-              © 2026 CallHub AI. All rights reserved. • 18+ only • AI-generated content • All characters are fictional
+              © 2026 Bondly AI. All rights reserved. • 18+ only • AI-generated content • All characters are fictional
             </p>
 
           </div>

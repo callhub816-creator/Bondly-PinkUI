@@ -78,7 +78,7 @@ async function sendAlert(env, report) {
     if (!webhookUrl) return;
 
     const message = {
-        text: `🚨 *CallHub Sentinel Alert*\n\n` +
+        text: `🚨 *Bondly Sentinel Alert*\n\n` +
             report.anomalies.join("\n") +
             `\n\n_Time: ${report.timestamp}_`
     };

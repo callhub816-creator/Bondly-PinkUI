@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Login from './Login';
 import Signup from './Signup';
@@ -35,9 +34,9 @@ const AuthScreen: React.FC = () => {
             {/* Main Auth Container - Direct Card */}
             <div className="relative z-10 w-full flex justify-center py-2 animate-in fade-in zoom-in duration-700">
                 {view === 'login' ? (
-                    <Login onSwitchToSignup={() => toggleView('signup')} />
+                    <Login />
                 ) : (
-                    <Signup onSwitchToLogin={() => toggleView('login')} />
+                    <Signup />
                 )}
             </div>
 

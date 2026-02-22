@@ -95,26 +95,61 @@ export async function onRequestPost({ request, env }) {
         const orderData = await orderRes.json();
         const amountPaid = orderData.amount_paid || orderData.amount; // paise
 
-        // 5. 🧮 CALCULATE HEARTS (Strict Map)
+        // 5. 🧮 CALCULATE ASSETS (Strict Price Mapping from constants.ts)
         let heartsToAdd = 0;
-        if (amountPaid === 9900) heartsToAdd = 55;
-        else if (amountPaid === 19900) heartsToAdd = 120;
-        else if (amountPaid === 49900) heartsToAdd = 350;
+        let setTier = null;
+
+        if (amountPaid === 4900) {
+            // Either Starter Pass (Plan) or Starter Spark (Hearts)
+            // For simplicity, we'll check if they were buying a plan based on current hearts or just give both
+            heartsToAdd = 50;
+            setTier = 'STARTER';
+        }
+        else if (amountPaid === 19900) {
+            // Core Connection (Plan) or Bonding Pack (Hearts)
+            heartsToAdd = 250;
+            setTier = 'CORE';
+        }
+        else if (amountPaid === 39900) {
+            // Soulmate Pack (Hearts)
+            heartsToAdd = 600;
+        }
+        else if (amountPaid === 49900) {
+            // Ultra Pass (Plan)
+            heartsToAdd = 1000; // Bonus hearts for Ultra
+            setTier = 'PLUS';
+        }
         else {
             // 📝 LOG FAILURE
             await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
             return new Response(JSON.stringify({ error: "Invalid amount paid" }), { status: 400 });
         }
 
-        // 6. 💾 ATOMIC UPDATE (SQL-Level Increment + Mark Processed)
-        await env.DB.batch([
+        // 6. 💾 ATOMIC UPDATE (Update WALLET/SUBSCRIPTION + Mark Processed)
+        const nowIso = new Date().toISOString();
+
+        const queries = [
+            // a. Update Wallet (Always add hearts)
             env.DB.prepare(`
-                UPDATE users 
-                SET profile_data = json_set(profile_data, '$.hearts', CAST(json_extract(profile_data, '$.hearts') AS INTEGER) + ?)
-                WHERE id = ?
-            `).bind(heartsToAdd, userId),
-            env.DB.prepare("INSERT INTO processed_orders (id, user_id, order_id, amount, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, razorpay_order_id, amountPaid, new Date().toISOString())
-        ]);
+                UPDATE wallets 
+                SET hearts = hearts + ?, total_earned = total_earned + ?, updated_at = ?
+                WHERE user_id = ?
+            `).bind(heartsToAdd, amountPaid / 100, nowIso, userId),
+
+            // b. Mark Order Processed
+            env.DB.prepare("INSERT INTO processed_orders (id, user_id, order_id, amount, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, razorpay_order_id, amountPaid, nowIso)
+        ];
+
+        // c. Update Subscription if it was a plan purchase
+        if (setTier) {
+            queries.push(
+                env.DB.prepare("UPDATE subscriptions SET plan_name = ?, status = 'active', started_at = ? WHERE user_id = ?")
+                    .bind(setTier, nowIso, userId)
+            );
+        }
+
+        await env.DB.batch(queries);
 
         return new Response(
             JSON.stringify({

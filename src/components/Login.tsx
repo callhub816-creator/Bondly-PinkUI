@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../../components/NotificationProvider';
@@ -76,9 +75,9 @@ const Login: React.FC<{ onSwitchToSignup: () => void }> = ({ onSwitchToSignup })
                 placeholder="Enter Username"
                 onChange={(e) => { setUsername(e.target.value); setUsernameError(null); }}
                 className={`w-full pl-11 pr-4 py-3.5 bg-white border rounded-[18px] focus:outline-none focus:ring-2 transition-all text-[#4A2040] placeholder-gray-400 text-[15px] ${usernameError
-                    ? 'border-red-400 ring-1 ring-red-300 focus:border-red-400 focus:ring-red-200'
-                    : 'border-gray-200 focus:ring-[#FF9ACB]/20 focus:border-[#FF9ACB]'
-                  }`}
+                  ? 'border-red-400 ring-1 ring-red-300 focus:border-red-400 focus:ring-red-200'
+                  : 'border-gray-200 focus:ring-[#FF9ACB]/20 focus:border-[#FF9ACB]'
+                }`}
               />
             </div>
             {usernameError && (
@@ -102,9 +101,9 @@ const Login: React.FC<{ onSwitchToSignup: () => void }> = ({ onSwitchToSignup })
                 placeholder="Enter Password"
                 onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
                 className={`w-full pl-11 pr-12 py-3.5 bg-white border rounded-[18px] focus:outline-none focus:ring-2 transition-all text-[#4A2040] placeholder-gray-400 text-[15px] password-input ${passwordError
-                    ? 'border-red-400 ring-1 ring-red-300 focus:border-red-400 focus:ring-red-200'
-                    : 'border-gray-200 focus:ring-[#FF9ACB]/20 focus:border-[#FF9ACB]'
-                  }`}
+                  ? 'border-red-400 ring-1 ring-red-300 focus:border-red-400 focus:ring-red-200'
+                  : 'border-gray-200 focus:ring-[#FF9ACB]/20 focus:border-[#FF9ACB]'
+                }`}
               />
               <button
                 type="button"

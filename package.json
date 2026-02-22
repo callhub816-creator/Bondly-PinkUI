@@ -10,7 +10,7 @@
     "server": "node server/index.js",
     "server:dev": "nodemon server/index.js",
     "security-scan": "node scripts/surgeon_scan.cjs",
-    "deploy": "wrangler pages deploy ./dist"
+    "deploy": "npx wrangler pages deploy ./dist"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
