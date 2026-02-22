@@ -45,7 +45,19 @@ export async function onRequest({ request, next, env }) {
 
     // 2. 🔒 SECURITY HEADERS (Production Hardening)
     const newHeaders = new Headers(response.headers);
-    newHeaders.set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*; frame-src https://api.razorpay.com; connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io;");
+    const csp = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://static.cloudflareinsights.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "img-src 'self' data: https://*",
+        "font-src 'self' https://fonts.gstatic.com",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io",
+        "frame-src https://api.razorpay.com",
+        "media-src 'self' data: https://*",
+        "worker-src 'self' blob:"
+    ].join("; ");
+
+    newHeaders.set("Content-Security-Policy", csp);
     newHeaders.set("X-Frame-Options", "DENY");
     newHeaders.set("X-Content-Type-Options", "nosniff");
     newHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
