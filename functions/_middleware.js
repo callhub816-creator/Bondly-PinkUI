@@ -51,7 +51,7 @@ export async function onRequest({ request, next, env }) {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https://*",
         "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com",
         "frame-src https://api.razorpay.com",
         "media-src 'self' data: https://*",
         "worker-src 'self' blob:"
