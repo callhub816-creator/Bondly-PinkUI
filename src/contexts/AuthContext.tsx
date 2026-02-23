@@ -4,6 +4,8 @@ import { storage } from '../../utils/storage';
 import { UserProfile, SubscriptionPlan, ConnectionLevel } from '../../types';
 import { GATING_CONFIG } from '../../constants';
 import { useNotification } from '../../components/NotificationProvider';
+import { auth } from '../utils/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
 
 type ProviderName = 'facebook' | 'google';
 
@@ -102,31 +104,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
+  const handleFirebaseSync = async (idToken: string, displayName: string | null) => {
+    try {
+      const res = await fetch('/api/auth/firebase-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          displayName: displayName || undefined,
+          apiKey: import.meta.env.VITE_FIREBASE_API_KEY
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Backend sync failed');
+
+      setUser(data.user);
+      if (data.profileData) {
+        storage.saveProfile(data.profileData);
+        refreshProfile();
+      }
+      return data;
+    } catch (err: any) {
+      console.error('Sync error:', err);
+      throw err;
+    }
+  };
+
   const signUp = async (username: string, displayName: string, password: string) => {
     setLoading(true);
     try {
-      const currentProfile = storage.getProfile();
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, displayName, password, profileData: currentProfile })
-      });
+      const email = username.includes('@') ? username : `${username}@bondly.online`;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-      const contentType = res.headers.get("content-type");
-      let data;
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(text || `Server Error: ${res.status}`);
-      }
+      await firebaseUpdateProfile(userCredential.user, { displayName });
 
-      if (!res.ok) throw new Error(data.error || 'Signup failed');
+      const token = await userCredential.user.getIdToken();
+      const data = await handleFirebaseSync(token, displayName);
 
-      setUser(data.user);
       return { data, error: null };
     } catch (error: any) {
-      return { data: null, error };
+      console.error(error);
+      let msg = error.message;
+      if (error.code === 'auth/email-already-in-use') msg = 'Username/Email already exists.';
+      if (error.code === 'auth/weak-password') msg = 'Password should be at least 6 characters.';
+      return { data: null, error: { message: msg, field: 'username' } };
     } finally {
       setLoading(false);
     }
@@ -135,54 +156,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (username: string, password: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
+      const email = username.includes('@') ? username : `${username}@bondly.online`;
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      // Handle case where response might not be JSON
-      const contentType = res.headers.get("content-type");
-      let data;
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(text || `Server Error: ${res.status}`);
-      }
+      const token = await userCredential.user.getIdToken();
+      const data = await handleFirebaseSync(token, userCredential.user.displayName);
 
-      if (!res.ok) {
-        let errorMessage = 'Invalid username or password';
-        let errorField: string | undefined;
-        if (data && data.error) {
-          errorMessage = data.error;
-          errorField = data.field; // 'username' | 'password' | undefined
-        } else if (typeof data === 'string' && data.includes('{')) {
-          try {
-            const parsed = JSON.parse(data);
-            errorMessage = parsed.error || errorMessage;
-            errorField = parsed.field;
-          } catch (e) { }
-        }
-        throw Object.assign(new Error(errorMessage), { field: errorField });
-      }
-
-      setUser(data.user);
-      if (data.profileData) {
-        storage.saveProfile(data.profileData);
-        refreshProfile();
-      }
       return { data, error: null };
     } catch (err: any) {
       console.error('AuthContext signIn catch:', err);
       let msg = err.message || 'Login failed';
-      if (msg.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(msg);
-          msg = parsed.error || msg;
-        } catch (e) { }
-      }
-      return { data: null, error: { message: msg, field: err.field } };
+      if (err.code === 'auth/invalid-credential') msg = 'Invalid username or password';
+      return { data: null, error: { message: msg, field: 'password' } };
     } finally {
       setLoading(false);
     }
@@ -190,6 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      await firebaseSignOut(auth);
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) { }
     setUser(null);
@@ -198,7 +184,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithProvider = async (provider: ProviderName) => {
-    window.location.href = `/api/auth/${provider}`;
+    if (provider === 'google') {
+      const googleProvider = new GoogleAuthProvider();
+      try {
+        const userCredential = await signInWithPopup(auth, googleProvider);
+        const token = await userCredential.user.getIdToken();
+        await handleFirebaseSync(token, userCredential.user.displayName);
+        window.location.href = '/';
+      } catch (e) {
+        console.error(e);
+        showNotification('Google Sign-In failed', 'error');
+      }
+    }
   };
 
   const updateConnection = useCallback((companionId: string | number, points: number) => {

@@ -18,6 +18,7 @@
     "@types/react-window": "^1.8.8",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "firebase": "^12.9.0",
     "lucide-react": "^0.554.0",
     "razorpay": "^2.9.6",
     "react": "^19.2.0",
