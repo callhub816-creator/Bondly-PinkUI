@@ -47,12 +47,12 @@ export async function onRequest({ request, next, env }) {
     const newHeaders = new Headers(response.headers);
     const csp = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://static.cloudflareinsights.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https://*",
         "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com",
-        "frame-src https://api.razorpay.com",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
+        "frame-src 'self' https://api.razorpay.com https://bondly-9ec57.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
         "media-src 'self' data: https://*",
         "worker-src 'self' blob:"
     ].join("; ");
