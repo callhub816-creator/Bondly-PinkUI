@@ -5,7 +5,7 @@ import { UserProfile, SubscriptionPlan, ConnectionLevel } from '../../types';
 import { GATING_CONFIG } from '../../constants';
 import { useNotification } from '../../components/NotificationProvider';
 import { auth } from '../utils/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
+import { signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 type ProviderName = 'facebook' | 'google';
 
@@ -14,8 +14,6 @@ type AuthContextType = {
   profile: UserProfile;
   loading: boolean;
   syncProfile: (profile: UserProfile) => Promise<void>;
-  signUp: (username: string, displayName: string, password: string) => Promise<{ error: any; data: any }>;
-  signIn: (username: string, password: string) => Promise<{ error: any; data: any }>;
   signInWithProvider: (provider: ProviderName) => Promise<void>;
   signOut: () => Promise<void>;
   updateConnection: (companionId: string | number, points: number) => void;
@@ -130,48 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (username: string, displayName: string, password: string) => {
-    setLoading(true);
-    try {
-      const email = username.includes('@') ? username : `${username}@bondly.online`;
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-      await firebaseUpdateProfile(userCredential.user, { displayName });
-
-      const token = await userCredential.user.getIdToken();
-      const data = await handleFirebaseSync(token, displayName);
-
-      return { data, error: null };
-    } catch (error: any) {
-      console.error(error);
-      let msg = error.message;
-      if (error.code === 'auth/email-already-in-use') msg = 'Username/Email already exists.';
-      if (error.code === 'auth/weak-password') msg = 'Password should be at least 6 characters.';
-      return { data: null, error: { message: msg, field: 'username' } };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signIn = async (username: string, password: string) => {
-    setLoading(true);
-    try {
-      const email = username.includes('@') ? username : `${username}@bondly.online`;
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-
-      const token = await userCredential.user.getIdToken();
-      const data = await handleFirebaseSync(token, userCredential.user.displayName);
-
-      return { data, error: null };
-    } catch (err: any) {
-      console.error('AuthContext signIn catch:', err);
-      let msg = err.message || 'Login failed';
-      if (err.code === 'auth/invalid-credential') msg = 'Invalid username or password';
-      return { data: null, error: { message: msg, field: 'password' } };
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signOut = async () => {
     try {
@@ -468,7 +425,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading, syncProfile, signUp, signIn, signInWithProvider, signOut,
+      user, profile, loading, syncProfile, signInWithProvider, signOut,
       updateConnection, incrementUsage, refreshProfile, upgradeSubscription, purchaseHearts,
       spendHearts, sendGift, unlockConnectionTier, leasePersonality, extendMessages, buyStarterPass,
       updateProfile, claimDailyBonus
