@@ -68,6 +68,11 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso)
         ]);
 
+        const headers = new Headers();
+        headers.set("Content-Type", "application/json");
+        headers.append("Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`);
+        headers.append("Set-Cookie", `refresh_token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`);
+
         return new Response(JSON.stringify({
             success: true,
             user: { id: user.id, username: user.username, displayName: user.display_name },
@@ -76,13 +81,8 @@ export async function onRequestPost({ request, env }) {
                 subscription: subscription?.plan_name || 'FREE'
             }
         }), {
-            headers: {
-                "Content-Type": "application/json",
-                "Set-Cookie": [
-                    `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`,
-                    `refresh_token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
-                ].join(', ')
-            }
+            status: 200,
+            headers
         });
 
     } catch (err) {
