@@ -102,6 +102,12 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), user.id, 'login', JSON.stringify({ ip }), nowIso)
         ]);
 
+        // Only set Secure flag when request is HTTPS (avoid Secure cookies on local HTTP dev)
+        const isSecure = new URL(request.url).protocol === 'https:';
+        const secureAttr = isSecure ? ' Secure;' : '';
+        const authCookie = `auth_token=${accessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=900`;
+        const refreshCookie = `refresh_token=${refreshToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=2592000`;
+
         return new Response(JSON.stringify({
             success: true,
             user: { id: user.id, username: user.username, displayName: user.display_name },
@@ -112,8 +118,8 @@ export async function onRequestPost({ request, env }) {
         }), {
             headers: [
                 ["Content-Type", "application/json"],
-                ["Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
-                ["Set-Cookie", `refresh_token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
+                ["Set-Cookie", authCookie],
+                ["Set-Cookie", refreshCookie]
             ]
         });
 

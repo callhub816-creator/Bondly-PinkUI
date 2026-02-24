@@ -38,11 +38,16 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), userId, newRefreshToken, newRefreshExp, new Date().toISOString())
         ]);
 
+        const isSecure = new URL(request.url).protocol === 'https:';
+        const secureAttr = isSecure ? ' Secure;' : '';
+        const authCookie = `auth_token=${newAccessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=900`;
+        const refreshCookie = `refresh_token=${newRefreshToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=2592000`;
+
         return new Response(JSON.stringify({ success: true }), {
             headers: [
                 ["Content-Type", "application/json"],
-                ["Set-Cookie", `auth_token=${newAccessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
-                ["Set-Cookie", `refresh_token=${newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
+                ["Set-Cookie", authCookie],
+                ["Set-Cookie", refreshCookie]
             ]
         });
 
