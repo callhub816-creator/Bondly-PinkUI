@@ -39,13 +39,11 @@ export async function onRequestPost({ request, env }) {
         ]);
 
         return new Response(JSON.stringify({ success: true }), {
-            headers: {
-                "Content-Type": "application/json",
-                "Set-Cookie": [
-                    `auth_token=${newAccessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`,
-                    `refresh_token=${newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
-                ].join(', ')
-            }
+            headers: [
+                ["Content-Type", "application/json"],
+                ["Set-Cookie", `auth_token=${newAccessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
+                ["Set-Cookie", `refresh_token=${newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
+            ]
         });
 
     } catch (err) {

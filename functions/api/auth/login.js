@@ -110,13 +110,11 @@ export async function onRequestPost({ request, env }) {
                 subscription: subscription?.plan_name || 'FREE'
             }
         }), {
-            headers: {
-                "Content-Type": "application/json",
-                "Set-Cookie": [
-                    `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`,
-                    `refresh_token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
-                ].join(', ')
-            }
+            headers: [
+                ["Content-Type", "application/json"],
+                ["Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
+                ["Set-Cookie", `refresh_token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
+            ]
         });
 
     } catch (err) {
