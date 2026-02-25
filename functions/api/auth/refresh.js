@@ -3,7 +3,7 @@ export async function onRequestPost({ request, env }) {
     if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
 
     const cookieHeader = request.headers.get("Cookie") || "";
-    const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+    const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
     const oldRefreshToken = cookies["refresh_token"];
 
     if (!oldRefreshToken) return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 401 });

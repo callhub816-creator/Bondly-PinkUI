@@ -9,7 +9,7 @@ export async function onRequestPost({ request, env }) {
     if (authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7);
     } else {
-        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
         token = cookies["auth_token"];
     }
 
