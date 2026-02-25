@@ -46,7 +46,7 @@ export async function onRequestPost({ request, env }) {
 
         // 2. 🕵️ ABNORMAL BEHAVIOR DETECTION (Rate Limit: 5 Spends per 60s)
         const minuteAgo = new Date(Date.now() - 60000).toISOString();
-        const { count: recentSpends } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_audit_log WHERE user_id = ? AND created_at > ?")
+        const { count: recentSpends } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE user_id = ? AND created_at > ?")
             .bind(userId, minuteAgo).first();
 
         if (recentSpends >= 5) {
@@ -54,7 +54,7 @@ export async function onRequestPost({ request, env }) {
         }
 
         // 3. 💾 ATOMIC DEBIT + AUDIT TRAIL
-        const wallet = await env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first();
+        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
         if (!wallet) return new Response(JSON.stringify({ error: "Wallet not found" }), { status: 404 });
 
         const oldBalance = wallet.hearts || 0;
@@ -66,15 +66,15 @@ export async function onRequestPost({ request, env }) {
 
         await env.DB.batch([
             // Update Wallet
-            env.DB.prepare("UPDATE wallets SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE user_id = ?")
+            env.DB.prepare("UPDATE users SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE id = ?")
                 .bind(newBalance, amount, nowIso, userId),
 
             // Audit Log
-            env.DB.prepare("INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, -amount, 'spend', reason || "manual_spend", ip, nowIso),
 
             // Event Log
-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, 'spend_hearts', JSON.stringify({ amount, reason }), nowIso)
         ]);
 

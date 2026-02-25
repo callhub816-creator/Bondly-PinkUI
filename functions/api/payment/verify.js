@@ -63,7 +63,7 @@ export async function onRequestPost({ request, env }) {
 
         if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
             // 📝 LOG FAILURE
-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
             return new Response(JSON.stringify({ error: "Missing parameters" }), { status: 400 });
         }
 
@@ -74,12 +74,12 @@ export async function onRequestPost({ request, env }) {
         const generatedSignature = await generateHmacSha256(`${razorpay_order_id}|${razorpay_payment_id}`, secret);
         if (generatedSignature !== razorpay_signature) {
             // 📝 LOG FAILURE
-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
             return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
         }
 
         // 3. 🛑 IDEMPOTENCY CHECK (Prevent Replay Attack)
-        const { results: existingOrder } = await env.DB.prepare("SELECT id FROM processed_orders WHERE order_id = ?").bind(razorpay_order_id).all();
+        const { results: existingOrder } = await env.DB.prepare("SELECT id FROM wallet_transactions WHERE reason = ? AND type = 'payment'").bind(razorpay_order_id).all();
         if (existingOrder && existingOrder.length > 0) {
             return new Response(JSON.stringify({ success: true, message: "Order already processed" }), { headers: { "Content-Type": "application/json" } });
         }
@@ -121,7 +121,7 @@ export async function onRequestPost({ request, env }) {
         }
         else {
             // 📝 LOG FAILURE
-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
             return new Response(JSON.stringify({ error: "Invalid amount paid" }), { status: 400 });
         }
 
@@ -131,9 +131,9 @@ export async function onRequestPost({ request, env }) {
         const queries = [
             // a. Update Wallet (Always add hearts)
             env.DB.prepare(`
-                UPDATE wallets 
+                UPDATE users 
                 SET hearts = hearts + ?, total_earned = total_earned + ?, updated_at = ?
-                WHERE user_id = ?
+                WHERE id = ?
             `).bind(heartsToAdd, amountPaid / 100, nowIso, userId),
 
             // b. Mark Order Processed
@@ -165,7 +165,7 @@ export async function onRequestPost({ request, env }) {
         if (userId) {
             const logId = crypto.randomUUID();
             try {
-                await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
             } catch (e) { }
         }
         return new Response(JSON.stringify({ error: "Verification failed", detail: err.message }), { status: 500 });

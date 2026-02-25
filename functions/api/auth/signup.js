@@ -78,9 +78,7 @@ export async function onRequestPost({ request, env }) {
             ).bind(userId, username, displayName, passwordHash, passwordSalt, 'active', JSON.stringify(initialProfile), nowIso, nowIso),
 
             // 2. Initialize Wallet (20 Hearts Bonus)
-            env.DB.prepare(
-                "INSERT INTO wallets (id, user_id, hearts, total_spent, total_earned, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-            ).bind(crypto.randomUUID(), userId, 20, 0, 20, nowIso),
+            /* Removed wallets insert */ userId, 20, 0, 20, nowIso),
 
             // 3. Initialize Subscription (FREE)
             env.DB.prepare(
@@ -94,12 +92,12 @@ export async function onRequestPost({ request, env }) {
 
             // 5. Audit Log (Wallet)
             env.DB.prepare(
-                "INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
             ).bind(crypto.randomUUID(), userId, 20, 'bonus', 'signup_bonus', ip, nowIso),
 
             // 6. Event Log (Signup)
             env.DB.prepare(
-                "INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
             ).bind(crypto.randomUUID(), userId, 'signup', JSON.stringify({ ip, username }), nowIso)
         ]);
 

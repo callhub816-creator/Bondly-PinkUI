@@ -36,7 +36,7 @@ export async function onRequestPost({ request, env }) {
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
 
         // 2. 🕒 STRICT 24H CHECK (Check last bonus in audit log)
-        const lastBonus = await env.DB.prepare("SELECT created_at FROM wallet_audit_log WHERE user_id = ? AND type = 'bonus' ORDER BY created_at DESC LIMIT 1").bind(userId).first();
+        const lastBonus = await env.DB.prepare("SELECT created_at FROM wallet_transactions WHERE user_id = ? AND type = 'bonus' ORDER BY created_at DESC LIMIT 1").bind(userId).first();
 
         if (lastBonus) {
             const lastClaim = new Date(lastBonus.created_at).getTime();
@@ -80,13 +80,13 @@ export async function onRequestPost({ request, env }) {
         profile.lastDailyBonusClaim = nowIso;
 
         // Get current wallet
-        const wallet = await env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first();
+        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
         const newBalance = (wallet?.hearts || 0) + bonusAmount;
         profile.hearts = newBalance;
 
         await env.DB.batch([
             // Update Wallet
-            env.DB.prepare("UPDATE wallets SET hearts = ?, total_earned = total_earned + ?, updated_at = ? WHERE user_id = ?")
+            env.DB.prepare("UPDATE users SET hearts = ?, total_earned = total_earned + ?, updated_at = ? WHERE id = ?")
                 .bind(newBalance, bonusAmount, nowIso, userId),
 
             // Update User Profile Data (Streak & Last Claim)
@@ -94,11 +94,11 @@ export async function onRequestPost({ request, env }) {
                 .bind(JSON.stringify(profile), nowIso, userId),
 
             // Audit Log
-            env.DB.prepare("INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, bonusAmount, 'bonus', 'lucky_box', ip, nowIso),
 
             // Event Log
-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, 'claim_bonus', JSON.stringify({ amount: bonusAmount, streak: currentStreak }), nowIso)
         ]);
 

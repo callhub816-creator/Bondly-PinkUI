@@ -24,19 +24,19 @@ async function runSentinel(env) {
         const timeRange = new Date(Date.now() - 5 * 60000).toISOString(); // Last 5 mins
 
         // 1. Check 500 Errors Spike
-        const { count: errorCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM logs WHERE action = 'error' AND created_at > ?")
+        const { count: errorCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'error' AND created_at > ?")
             .bind(timeRange).first();
         report.checks.server_errors = errorCount;
         if (errorCount > 10) report.anomalies.push(`🔴 CRITICAL: ${errorCount} server errors detected in last 5 mins.`);
 
         // 2. Check Payment Signature Failures (Fraud attempt)
-        const { count: paymentFails } = await env.DB.prepare("SELECT COUNT(*) as count FROM logs WHERE action = 'payment_fail_sig' AND created_at > ?")
+        const { count: paymentFails } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'payment_fail_sig' AND created_at > ?")
             .bind(timeRange).first();
         report.checks.payment_fraud_attempts = paymentFails;
         if (paymentFails > 0) report.anomalies.push(`🟡 WARNING: ${paymentFails} invalid payment signature attempts detected.`);
 
         // 3. Check Wallet Spikes (Abnormal spending)
-        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_audit_log WHERE change_amount < -500 AND created_at > ?")
+        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE change_amount < -500 AND created_at > ?")
             .bind(timeRange).first();
         report.checks.heavy_spending = walletSpikes;
         if (walletSpikes > 2) report.anomalies.push(`🔴 ALERT: ${walletSpikes} high-value heart transactions detected.`);
@@ -44,8 +44,8 @@ async function runSentinel(env) {
         // 4. Brute Force Login Attempts
         const bruteForceIps = await env.DB.prepare(`
             SELECT details->>'$.ip' as ip, COUNT(*) as count 
-            FROM logs 
-            WHERE action = 'login_fail' AND created_at > ? 
+            FROM user_visits 
+            WHERE visit_type = 'login_fail' AND created_at > ? 
             GROUP BY ip HAVING count > 10
         `).bind(timeRange).all();
 

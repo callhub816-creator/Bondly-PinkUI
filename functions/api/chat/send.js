@@ -98,9 +98,9 @@ export async function onRequestPost({ request, env }) {
 
             // b. Deduct Hearts from Wallet
             env.DB.prepare(`
-                UPDATE wallets 
+                UPDATE users 
                 SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ?
-                WHERE user_id = ? AND hearts >= ?
+                WHERE id = ? AND hearts >= ?
             `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
 
             // c. Save Message
@@ -112,7 +112,7 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "Thoda dheere! Please wait a moment." }), { status: 429 });
         }
         if (batchResult[1].meta.changes === 0) {
-            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️", action: "open_shop" }), { status: 429 });
+            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️", visit_type: "open_shop" }), { status: 429 });
         }
 
         // ⚡ SMART PRE-RESPONSE CACHE (Save API Hits for common phrases)

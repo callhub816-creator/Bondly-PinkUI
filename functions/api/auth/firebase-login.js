@@ -58,7 +58,7 @@ export async function onRequestPost({ request, env }) {
         const refreshExp = Date.now() + (30 * 86400000);
 
         const [wallet, subscription] = await Promise.all([
-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(user.id).first(),
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
         ]);
 

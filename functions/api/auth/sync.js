@@ -62,7 +62,7 @@ export async function onRequestPost({ request, env }) {
         // 🛡️ [SECURITY LOCK] Fetch Existing Data + Wallet + Subscription
         const [userRow, walletRow, subRow] = await Promise.all([
             env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first(),
-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
         ]);
 

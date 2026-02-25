@@ -9,7 +9,7 @@ export async function onRequestPost({ request, env }) {
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
 
         // 1. Check for recent failed attempts for this username (Sentinel)
-        const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM event_logs WHERE event_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
+        const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
             .bind(new Date(Date.now() - 15 * 60000).toISOString(), `%${ip}%`).first();
 
         if (recentFailures?.count > 10) {
@@ -54,7 +54,7 @@ export async function onRequestPost({ request, env }) {
 
         if (currentHash !== user.password_hash) {
             // 📝 LOG FAILURE for Sentinel
-            await env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), user.id, 'login_fail', JSON.stringify({ ip }), new Date().toISOString()).run();
 
             return new Response(JSON.stringify({
@@ -85,7 +85,7 @@ export async function onRequestPost({ request, env }) {
 
         // 5. Fetch Wallet and Subscription info for Frontend Response
         const [wallet, subscription] = await Promise.all([
-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(user.id).first(),
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
         ]);
 
@@ -98,7 +98,7 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso),
 
             // 3. Event Log
-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), user.id, 'login', JSON.stringify({ ip }), nowIso)
         ]);
 
