@@ -69,11 +69,33 @@ export async function onRequestPost({ request, env }) {
         if (typeof message !== 'string') return new Response(JSON.stringify({ error: "Invalid message type" }), { status: 400 });
         const userMsgBody = message.trim();
 
-        // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory)
-        const userRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first();
+        // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory + Subscription)
+        const [userRow, subRow] = await Promise.all([
+            env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+        ]);
+
         if (!userRow) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
 
         const userHandle = userRow.username || "Guest";
+        const currentPlan = (subRow?.plan_name || 'free').toLowerCase();
+
+        // 🛡️ SECURITY WALL: PREMIUM PERSONA & VOICE BYPASS PREVENTION
+        const numericChatId = parseInt(chatId);
+        if (currentPlan === 'free') {
+            if (numericChatId > 2) {
+                // Hacker is trying to POST to a premium persona without a plan
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), userId, 'security_breach_persona', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedChatId: chatId }), new Date().toISOString()).run();
+                return new Response(JSON.stringify({ error: "Forbidden: Premium Persona requires active subscription." }), { status: 403 });
+            }
+            if (isVoiceNote) {
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), userId, 'security_breach_voice', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedVoice: true }), new Date().toISOString()).run();
+                return new Response(JSON.stringify({ error: "Forbidden: Voice Notes require active subscription." }), { status: 403 });
+            }
+        }
+
         const userProfile = JSON.parse("{}");
         const userName = userProfile.nickname || userProfile.displayName || "Mere Jaan";
         const longTermMemory = userProfile.long_term_memory || "Everything starts from here.";
