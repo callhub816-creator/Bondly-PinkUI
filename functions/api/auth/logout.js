@@ -5,11 +5,10 @@ export async function onRequestPost({ request }) {
     const clearAuth = `auth_token=; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=0`;
     const clearRefresh = `refresh_token=; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=0`;
 
-    return new Response(JSON.stringify({ success: true }), {
-        headers: {
-            "Content-Type": "application/json",
-            "Set-Cookie": clearAuth,
-            "Set-Cookie": clearRefresh
-        }
-    });
+    const headers = new Headers();
+    headers.append("Content-Type", "application/json");
+    headers.append("Set-Cookie", clearAuth);
+    headers.append("Set-Cookie", clearRefresh);
+
+    return new Response(JSON.stringify({ success: true }), { headers });
 }
