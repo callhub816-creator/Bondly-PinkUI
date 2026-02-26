@@ -10,5 +10,9 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+if (!firebaseConfig.apiKey) {
+    throw new Error("Firebase environment variables not configured");
+}
+
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
