@@ -1,114 +1,90 @@
-### BACKEND FORENSIC AUDIT REPORT
+# 🛡️ Backend Forensic Security & Razorpay Compliance Audit Report
 
-#### 1. DATABASE QUERY SCAN
-**`functions/_middleware.js`**
-- **Tables used:** `USER_VISITS`
-- **Columns referenced:** `id`, `user_id`, `session_id`, `visit_type`, `ip_address`, `metadata`, `created_at`
-- **Type of operation:** `INSERT`
-
-**`functions/api/admin/users.js`**
-- **Tables used:** `USERS`
-- **Columns referenced:** `id`, `username`, `display_name`, `created_at`
-- **Type of operation:** `SELECT`
-
-**`functions/api/auth/bonus.js`**
-- **Tables used:** `WALLET_TRANSACTIONS`, `USERS`, `USER_VISITS`
-- **Columns referenced:** `created_at`, `user_id`, `type`, `id`, `hearts`, `total_earned`, `updated_at`, `amount`, `reason`, `ip_address`, `visit_type`, `metadata`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/api/auth/firebase-login.js`**
-- **Tables used:** `USERS`, `WALLETS`, `SUBSCRIPTIONS`, `USER_SESSIONS`
-- **Columns referenced:** `id`, `provider`, `provider_id`, `username`, `display_name`, `email`, `role`, `hearts`, `total_spent`, `total_earned`, `created_at`, `updated_at`, `last_login_at`, `user_id`, `plan_name`, `status`, `refresh_token`, `expires_at`
-- **Type of operation:** `SELECT`, `INSERT`, `UPDATE`
-
-**`functions/api/auth/login.js`**
-- **Tables used:** `USER_VISITS`, `USERS`, `SUBSCRIPTIONS`, `USER_SESSIONS`
-- **Columns referenced:** `visit_type`, `created_at`, `metadata`, `username`, `id`, `hearts`, `plan_name`, `user_id`, `status`, `last_login_at`, `updated_at`, `refresh_token`, `expires_at`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/api/auth/refresh.js`**
-- **Tables used:** `USER_SESSIONS`, `USERS`
-- **Columns referenced:** `refresh_token`, `revoked`, `expires_at`, `id`, `username`, `display_name`, `user_id`, `created_at`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/api/auth/signup.js`**
-- **Tables used:** `USERS`, `SUBSCRIPTIONS`, `USER_SESSIONS`, `WALLET_TRANSACTIONS`, `USER_VISITS`
-- **Columns referenced:** `id`, `username`, `provider`, `provider_id`, `display_name`, `email`, `role`, `hearts`, `total_spent`, `total_earned`, `created_at`, `updated_at`, `user_id`, `plan_name`, `plan_price`, `payment_id`, `status`, `started_at`, `expires_at`, `refresh_token`, `ip_address`, `user_agent`, `revoked`, `amount`, `balance_after`, `type`, `reason`, `reference_id`, `session_id`, `visit_type`, `metadata`
-- **Type of operation:** `SELECT`, `INSERT`
-
-**`functions/api/auth/sync.js`**
-- **Tables used:** `USERS`, `SUBSCRIPTIONS`
-- **Columns referenced:** `id`, `hearts`, `plan_name`, `user_id`, `status`
-- **Type of operation:** `SELECT`
-
-**`functions/api/chat/index.js`**
-- **Tables used:** `MESSAGES`
-- **Columns referenced:** `chat_id`, `created_at`
-- **Type of operation:** `SELECT`
-
-**`functions/api/chat/send.js`**
-- **Tables used:** `USERS`, `MESSAGES`
-- **Columns referenced:** `username`, `id`, `updated_at`, `hearts`, `total_spent`, `chat_id`, `user_id`, `ai_profile_id`, `role`, `body`, `tokens_used`, `metadata`, `created_at`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/api/payment/verify.js`**
-- **Tables used:** `USER_VISITS`, `WALLET_TRANSACTIONS`, `USERS`, `SUBSCRIPTIONS`
-- **Columns referenced:** `id`, `user_id`, `session_id`, `visit_type`, `ip_address`, `metadata`, `created_at`, `reason`, `type`, `hearts`, `total_earned`, `updated_at`, `amount`, `balance_after`, `reference_id`, `plan_name`, `status`, `started_at`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/api/user/spend_hearts.js`**
-- **Tables used:** `WALLET_TRANSACTIONS`, `USERS`, `USER_VISITS`
-- **Columns referenced:** `user_id`, `created_at`, `id`, `hearts`, `total_spent`, `updated_at`, `amount`, `type`, `reason`, `ip_address`, `visit_type`, `metadata`
-- **Type of operation:** `SELECT`, `UPDATE`, `INSERT`
-
-**`functions/sentinel.js`**
-- **Tables used:** `USER_VISITS`, `WALLET_TRANSACTIONS`
-- **Columns referenced:** `visit_type`, `created_at`, `change_amount`, `details`
-- **Type of operation:** `SELECT`
+**Date:** February 26, 2026
+**Domain Analyzed:** `https://bondly.online`
+**Scope:** Payment gateways, verification logic, webhook security, origin safety, and abuse vectors.
 
 ---
 
-#### 2. SCHEMA DEFINITION MISMATCH & RISK REPORT
+## 1️⃣ Domain & Checkout Safety
+**Risk Level: 🟢 Low**
 
-| File | Mismatch Detected | Risk Level |
-|------|-------------------|------------|
-| `api/auth/firebase-login.js` | Direct query explicitly referencing `wallets` table which has been removed | **Critical** |
-| `api/auth/firebase-login.js` | Executes `UPDATE users SET last_login_at` referencing a `last_login_at` column which does not exist in schema | **Critical** |
-| `api/auth/login.js` | Executes `UPDATE users SET last_login_at` referencing missing logic | **Critical** |
-| `sentinel.js` | Queries `change_amount` column from `WALLET_TRANSACTIONS`, current column is `amount` | **Critical** |
-| `sentinel.js` | Extracts json data query against `details->>'$.ip'` from `USER_VISITS`. Schema column is `metadata`. | **Critical** |
-| `api/auth/bonus.js` | `WALLET_TRANSACTIONS` INSERT query structure omits schema required fields: `balance_after`, `reference_id` | Medium |
-| `api/user/spend_hearts.js` | `WALLET_TRANSACTIONS` INSERT query structure omits `balance_after`, `reference_id` | Medium |
-| `api/auth/bonus.js` | `USER_VISITS` INSERT query structure omits expected structural fields: `session_id`, `ip_address` | Medium |
-| `api/auth/login.js` | `USER_VISITS` INSERT query structure omits `session_id`, `ip_address` | Medium |
-| `api/user/spend_hearts.js`| `USER_VISITS` INSERT query structure omits `session_id`, `ip_address` | Medium |
-| `api/auth/firebase-login.js` | `USER_SESSIONS` INSERT omits specific required table references: `ip_address`, `user_agent`, `revoked` | Medium |
-| `api/auth/login.js` | `USER_SESSIONS` INSERT omits `ip_address`, `user_agent`, `revoked` | Medium |
-| `api/auth/refresh.js` | `USER_SESSIONS` INSERT omits `ip_address`, `user_agent`, `revoked` | Medium |
+- **Checkout Enforcement:** Razorpay Checkout is dynamically initiated on the client-side (`AuthContext.tsx`). There is no strict domain whitelisting embedded in the frontend bundle preventing initiation from local/unauthorized domains; however, the Razorpay Dashboard itself will reject checkout if the origin isn't whitelisted there.
+- **Old Domain Spillage:** No hardcoded references or leakage of old domains were found in the API routes or frontend configurations.
+- **HTTPS & Mixed Content:** Cloudflare handles HTTPS edge routing. Furthermore, the `_middleware.js` script injects strict security headers including `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` and a robust `Content-Security-Policy`. 
+
+**Required Fixes:** Ensure your approved `bondly.online` domain is explicitly whitelisted in the Razorpay Dashboard under API domains (if not already done). Re-approval is NOT needed for codebase changes, just Razorpay dashboard settings.
 
 ---
 
-#### 3. POTENTIAL CAUSE IDENTIFICATIONS
+## 2️⃣ Webhook Security
+**Risk Level: 🟡 Medium**
 
-**Causes of 401 Unauthorized Errors:**
-- In `refresh.js`, D1 query explicitly checks `revoked = 0`. But because newly created entries across `login.js`, `firebase-login.js`, and `refresh.js` fail to insert `revoked=0` natively, they will potentially default to `NULL`. SQLite queries evaluating whether `NULL = 0` evaluate implicitly to false.
+- **Implementation Status:** ⚠️ **Razorpay Webhooks are completely missing.** The system relies 100% on the frontend receiving the success callback and manually hitting `/api/payment/verify`. 
+- **Vulnerability:** If a user closes the browser tab, loses internet connection, or navigates away *exactly* after paying but *before* the callback fires, Razorpay will charge them, but the backend will never allocate the Hearts or Subscription.
+- **Idempotency:** On the `/api/payment/verify` route, you have implemented strict idempotency: `SELECT id FROM wallet_transactions WHERE reason = ? AND type = 'payment' - bind(razorpay_order_id)`. This successfully prevents replay attacks.
 
-**Causes of D1 SQL/Schema Errors:**
-- The presence of the `wallets` table interaction on user generation.
-- Attempting to push variable values to `users.last_login_at`.
-- Automated executions via `sentinel.js` running queries matching non-existent columns (`change_amount`, `details`).
-
-**Causes of Token/Session Mismatches:**
-- D1 `user_sessions` missing required logging footprints during creation constraints token viability across different verification scopes.
+**Required Fixes:** 
+- Implement a backend webhook endpoint (e.g., `/api/webhook/razorpay`) that listens to the `payment.captured` or `order.paid` events. This ensures that even if the client disconnects, the server securely assigns the wallet balance.
 
 ---
 
-#### 4. UNUSED & DEAD LOGIC
+## 3️⃣ Payment Verification Logic
+**Risk Level: 🟢 Low**
 
-- **UNUSED TABLES:** `AI_PROFILES` is never natively queried via CRUD inside the backend. Instead, an in-memory mapped object array dictating persona variables is defined directly within `functions/api/chat/send.js`.
-- **password_hash / password_salt:** Verified as dead code. Has natively been removed from all authentications.
-- **profile_data:** Verified as dead code. Extracted structurally from schemas and hard-coded out in sync operations.
-- **wallets:** Verified as dead code but is dangerously still referenced strictly in `firebase-login.js` initialization arrays.
-- **wallet_audit_log:** Verified as dead code. Properly migrated natively over to `wallet_transactions` structurally.
-- **personas:** Valid dead code context as schema tables; operates through inline memory indexing now.
-- **processed_orders / payments:** Verified as dead code. Removed and correctly replaced natively into generic transactions and visits logic via Razorpay tracking schemas.
+- **Server-side Verification:** Excellent. `/api/payment/verify` requires a cryptographic match: `HMAC-SHA256(order_id + payment_id, SECRET) === signature`. No client can fake a successful payment.
+- **Data Manipulation Check:** The verification logic strictly pulls the `amount_paid` from the Razorpay API endpoint (`https://api.razorpay.com/v1/orders/`). It does not trust the frontend's requested plan tier. Instead, it rigidly maps `amountPaid === 19900` to `CORE`, `amountPaid === 4900` to `STARTER`, etc.
+- **Wallet Manipulation:** The `spend_hearts` API only processes deductions for strictly positive amounts (`amount > 0 && amount <= 1000`) and uses atomic `UPDATE users SET hearts = hearts - ? WHERE hearts >= ?` statements. The `/api/auth/sync` API ignores frontend-supplied wallet balances, fetching truth exclusively from the DB.
+
+**Required Fixes:** None. Verification logic is rock solid.
+
+---
+
+## 4️⃣ CORS & Origin Validation
+**Risk Level: 🟡 Medium**
+
+- **Origin Restrictions:** While the `_middleware.js` applies CSP rules (`connect-src 'self' ...`), there is **no explicit `Access-Control-Allow-Origin` or Origin header validation** in the API route handlers (`onRequestPost`). 
+- **CSRF Defense:** Fortunately, authentication relies on `auth_token` and `refresh_token` cookies minted with `SameSite=Strict`. This effectively eliminates Cross-Site Request Forgery (CSRF). 
+- **Vulnerability:** Scripted bots (cURL, Postman) can still hit your APIs directly if they harvest a valid JWT token. 
+
+**Required Fixes:** 
+- Add strict origin checks in `_middleware.js` or inside sensitive POST endpoints: `if (request.headers.get("Origin") !== "https://bondly.online") return 403;`.
+
+---
+
+## 5️⃣ Environment & Secrets
+**Risk Level: 🟢 Low**
+
+- **Secret Management:** Secrets (`RAZORPAY_KEY_SECRET`, `JWT_SECRET`) are securely injected via `env`. They are never interpolated into frontend strings.
+- **Frontend Keys:** Only `RAZORPAY_KEY_ID` is relayed to the frontend via `/api/payment/create`, which is the intended design of Razorpay integration.
+
+**Required Fixes:** Verify in your Cloudflare dashboard that production environments are using `rzp_live_*` keys, and not `rzp_test_*` keys.
+
+---
+
+## 6️⃣ Abuse & Exploit Risks
+**Risk Level: 🔴 High (Premium Persona Bypass)**
+
+- **Bypass Payment & Access Persona:** ⚠️ Your frontend uses `useGating.ts` to hide Premium Personas (ID > 2) from Free/Starter users. However, **your backend (`/api/chat/send.js`) DOES NOT enforce this restriction.** 
+- **Exploit:** A free user (or script) could intercept network requests and manually POST to `/api/chat/send` with `chatId: 3` (Premium Persona). The backend will successfully process it, query the LLM, and deduct standard hearts without checking if their subscription tier actually permits access to `chatId: 3`.
+- **Duplicate Signatures:** Protected by the atomic transaction idempotency logic.
+- **Manual Subscription Triggers:** Protected. Requires valid `RAZORPAY_KEY_SECRET`.
+
+**Required Fixes:** 
+- In `functions/api/chat/send.js`, add a server-side lock check before invoking SambaNova. If `chatId > 2` and `user.subscription === 'free'`, reject the request with `403 Forbidden`.
+
+---
+
+## 7️⃣ Domain Change Risk (If applicable)
+- Assuming the transition to `bondly.online` was recent: 
+- Checkout scripts execute properly relative to the domain.
+- There are no old webhook URLs firing (since none exist).
+
+**Required Fixes:** Since webhooks are absent, Razorpay won't send alerts to the wrong domain. *When* you implement webhooks, ensure the Endpoint URL points to `https://bondly.online/api/...`.
+
+---
+
+### 📝 Final Verdict
+Your application is **secure against direct financial theft and payment spoofing.** The payment validation cryptography is perfectly sound. 
+
+However, you must fix the **Premium Persona Bypass in the Chat API** and strongly consider adding **Razorpay Webhooks** to prevent customer service nightmares when users close their browser window during the loading transition. Razorpay domain re-approval is **NOT necessary** unless you changed the business category.

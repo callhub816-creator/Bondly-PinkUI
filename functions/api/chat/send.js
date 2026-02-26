@@ -217,8 +217,8 @@ export async function onRequestPost({ request, env }) {
 
         // Fetch Context (Increased to 12 for better flow)
         const { results: history } = await env.DB.prepare(
-            "SELECT role, body FROM messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 12"
-        ).bind(chatId).all();
+            "SELECT role, body FROM messages WHERE chat_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 12"
+        ).bind(chatId, userId).all();
         const historyContext = (history || []).reverse().map(m => ({ role: m.role, content: m.body }));
 
         const voiceConstraint = isVoiceNote ? "\nCRITICAL: User has requested a VOICE NOTE. Word limit: 15-20 words." : "";
@@ -373,7 +373,7 @@ export async function onRequestPost({ request, env }) {
         const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
 
         await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
-            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
+            .bind(aiMsgId, chatId, userId, activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
 
         return new Response(JSON.stringify({
             success: true,

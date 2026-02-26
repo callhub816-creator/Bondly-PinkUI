@@ -71,8 +71,8 @@ export async function onRequestGet({ request, params, env }) {
     try {
         // Fetch last 50 messages
         const { results } = await env.DB.prepare(
-            "SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC LIMIT 100"
-        ).bind(chatId).all();
+            "SELECT * FROM messages WHERE chat_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 100"
+        ).bind(chatId, userId).all();
 
         return new Response(JSON.stringify({ messages: results || [] }), {
             headers: { "Content-Type": "application/json" }
