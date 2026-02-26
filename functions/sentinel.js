@@ -36,14 +36,14 @@ async function runSentinel(env) {
         if (paymentFails > 0) report.anomalies.push(`🟡 WARNING: ${paymentFails} invalid payment signature attempts detected.`);
 
         // 3. Check Wallet Spikes (Abnormal spending)
-        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE change_amount < -500 AND created_at > ?")
+        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE amount < -500 AND created_at > ?")
             .bind(timeRange).first();
         report.checks.heavy_spending = walletSpikes;
         if (walletSpikes > 2) report.anomalies.push(`🔴 ALERT: ${walletSpikes} high-value heart transactions detected.`);
 
         // 4. Brute Force Login Attempts
         const bruteForceIps = await env.DB.prepare(`
-            SELECT details->>'$.ip' as ip, COUNT(*) as count 
+            SELECT metadata->>'$.ip' as ip, COUNT(*) as count 
             FROM user_visits 
             WHERE visit_type = 'login_fail' AND created_at > ? 
             GROUP BY ip HAVING count > 10

@@ -29,14 +29,14 @@ export async function onRequestPost({ request, env }) {
         // 2. Setup user in D1 (if not exists)
         let user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(uid).first();
         const nowIso = new Date().toISOString();
+        const ip = request.headers.get("cf-connecting-ip") || "unknown";
+        const userAgent = request.headers.get("user-agent") || "unknown";
 
         if (!user) {
             // Create user
             await env.DB.prepare("INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'firebase', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)")
                 .bind(uid, uid, email, finalDisplayName, email, nowIso, nowIso).run();
-            // Create wallet, give 20 initial hearts
-            await env.DB.prepare("INSERT INTO wallets (id, user_id, hearts, updated_at) VALUES (?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), uid, 20, nowIso).run();
+            // Wallet initialized via users table
             user = { id: uid, username: email, display_name: finalDisplayName };
         }
 
@@ -63,9 +63,9 @@ export async function onRequestPost({ request, env }) {
         ]);
 
         await env.DB.batch([
-            env.DB.prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(nowIso, nowIso, user.id),
-            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso)
+            env.DB.prepare("UPDATE users SET updated_at = ? WHERE id = ?").bind(nowIso, user.id),
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)")
+                .bind(crypto.randomUUID(), user.id, refreshToken, ip, userAgent, refreshExp, nowIso)
         ]);
 
         const isSecure = new URL(request.url).protocol === 'https:';

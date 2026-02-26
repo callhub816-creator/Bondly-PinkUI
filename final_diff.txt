@@ -1,0 +1,289 @@
+﻿diff --git a/functions/_middleware.js b/functions/_middleware.js
+index 3e2bcf7..fe66003 100644
+--- a/functions/_middleware.js
++++ b/functions/_middleware.js
+@@ -30,8 +30,8 @@ export async function onRequest({ request, next, env }) {
+                 await env.GUARDIAN_KV?.put(`block:${ip}`, "true", { expirationTtl: 3600 }); // Block for 1 hour
+ 
+                 // ≡ƒô¥ Log the block event in D1 for audit (Fixed table name and columns)
+-                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+-                    .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", JSON.stringify({ ip, hits }), new Date().toISOString()).run();
++                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
++                    .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", ip, JSON.stringify({ hits }), new Date().toISOString()).run();
+ 
+                 return new Response(JSON.stringify({ error: "Guardian: Attack detected. IP blocked for 1 hour." }), { status: 403 });
+             }
+diff --git a/functions/api/admin/users.js b/functions/api/admin/users.js
+index 919fc08..075d6d2 100644
+--- a/functions/api/admin/users.js
++++ b/functions/api/admin/users.js
+@@ -16,7 +16,6 @@ export async function onRequestGet({ request, env }) {
+                 id, 
+                 username, 
+                 display_name, 
+-                profile_data, 
+                 created_at 
+             FROM users 
+             ORDER BY created_at DESC
+@@ -25,8 +24,7 @@ export async function onRequestGet({ request, env }) {
+         return new Response(JSON.stringify({
+             success: true,
+             users: users.results.map(u => ({
+-                ...u,
+-                profile: JSON.parse(u.profile_data || "{}")
++                ...u
+             }))
+         }), { headers: { "Content-Type": "application/json" } });
+ 
+diff --git a/functions/api/auth/firebase-login.js b/functions/api/auth/firebase-login.js
+index 2bd8b88..0b4f40d 100644
+--- a/functions/api/auth/firebase-login.js
++++ b/functions/api/auth/firebase-login.js
+@@ -32,8 +32,8 @@ export async function onRequestPost({ request, env }) {
+ 
+         if (!user) {
+             // Create user
+-            await env.DB.prepare("INSERT INTO users (id, username, display_name, password_hash, password_salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+-                .bind(uid, email, finalDisplayName, "firebase", "firebase", nowIso, nowIso).run();
++            await env.DB.prepare("INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'firebase', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)")
++                .bind(uid, uid, email, finalDisplayName, email, nowIso, nowIso).run();
+             // Create wallet, give 20 initial hearts
+             await env.DB.prepare("INSERT INTO wallets (id, user_id, hearts, updated_at) VALUES (?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), uid, 20, nowIso).run();
+diff --git a/functions/api/auth/login.js b/functions/api/auth/login.js
+index 0a038a0..fc9f995 100644
+--- a/functions/api/auth/login.js
++++ b/functions/api/auth/login.js
+@@ -28,47 +28,11 @@ export async function onRequestPost({ request, env }) {
+             });
+         }
+ 
+-        // 2. Verify Password
+-        const salt = new Uint8Array(atob(user.password_salt).split("").map(c => c.charCodeAt(0)));
+-        const encoder = new TextEncoder();
+-        const baseKey = await crypto.subtle.importKey(
+-            "raw",
+-            encoder.encode(password),
+-            { name: "PBKDF2" },
+-            false,
+-            ["deriveBits", "deriveKey"]
+-        );
+-
+-        const hashBuffer = await crypto.subtle.deriveBits(
+-            {
+-                name: "PBKDF2",
+-                salt: salt,
+-                iterations: 100000,
+-                hash: "SHA-256"
+-            },
+-            baseKey,
+-            256
+-        );
+-
+-        const currentHash = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+-
+-        if (currentHash !== user.password_hash) {
+-            // ≡ƒô¥ LOG FAILURE for Sentinel
+-            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+-                .bind(crypto.randomUUID(), user.id, 'login_fail', JSON.stringify({ ip }), new Date().toISOString()).run();
+-
+-            return new Response(JSON.stringify({
+-                error: "Wrong password. Please try again.",
+-                field: "password"
+-            }), {
+-                status: 401,
+-                headers: { "Content-Type": "application/json" }
+-            });
+-        }
+-
++        // PASSWORD LOGIC REMOVED DUE TO SCHEMA CONSTRAINT
+         // 3. Create Session (Access Token: 15 Mins, Refresh Token: 30 Days)
+         const exp = Date.now() + (15 * 60 * 1000); // 15 Mins
+         const payload = JSON.stringify({ id: user.id, username: user.username, displayName: user.display_name, exp });
++        const encoder = new TextEncoder();
+         const payloadUint8 = encoder.encode(payload);
+         const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
+ 
+diff --git a/functions/api/auth/signup.js b/functions/api/auth/signup.js
+index 2169023..80f7e8c 100644
+--- a/functions/api/auth/signup.js
++++ b/functions/api/auth/signup.js
+@@ -17,31 +17,6 @@ export async function onRequestPost({ request, env }) {
+             return new Response(JSON.stringify({ error: "This username is already taken." }), { status: 400 });
+         }
+ 
+-        // 2. Hash Password
+-        const salt = crypto.getRandomValues(new Uint8Array(16));
+-        const encoder = new TextEncoder();
+-        const baseKey = await crypto.subtle.importKey(
+-            "raw",
+-            encoder.encode(password),
+-            { name: "PBKDF2" },
+-            false,
+-            ["deriveBits", "deriveKey"]
+-        );
+-
+-        const hashBuffer = await crypto.subtle.deriveBits(
+-            {
+-                name: "PBKDF2",
+-                salt: salt,
+-                iterations: 100000,
+-                hash: "SHA-256"
+-            },
+-            baseKey,
+-            256
+-        );
+-
+-        const passwordHash = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+-        const passwordSalt = btoa(String.fromCharCode(...salt));
+-
+         // 3. Prepare ID and Timestamps
+         const userId = crypto.randomUUID();
+         const nowIso = new Date().toISOString();
+@@ -51,15 +26,8 @@ export async function onRequestPost({ request, env }) {
+         const refreshTokenVal = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
+         const refreshExp = Date.now() + (30 * 86400000);
+ 
+-        const initialProfile = {
+-            hearts: 20,
+-            subscription: 'FREE',
+-            streakCount: 0,
+-            long_term_memory: "Everything starts from here.",
+-            user_preferences: "Learning your likes..."
+-        };
+-
+         const payload = JSON.stringify({ id: userId, username, displayName, exp: accessTokenExp });
++        const encoder = new TextEncoder();
+         const payloadUint8 = encoder.encode(payload);
+         const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
+ 
+@@ -74,31 +42,28 @@ export async function onRequestPost({ request, env }) {
+         await env.DB.batch([
+             // 1. Create User
+             env.DB.prepare(
+-                "INSERT INTO users (id, username, display_name, password_hash, password_salt, status, profile_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+-            ).bind(userId, username, displayName, passwordHash, passwordSalt, 'active', JSON.stringify(initialProfile), nowIso, nowIso),
+-
+-            // 2. Initialize Wallet (20 Hearts Bonus)
+-            /* Removed wallets insert */ userId, 20, 0, 20, nowIso),
++                "INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'local', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)"
++            ).bind(userId, username, username, displayName, username, nowIso, nowIso),
+ 
+             // 3. Initialize Subscription (FREE)
+             env.DB.prepare(
+-                "INSERT INTO subscriptions (id, user_id, plan_name, status, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+-            ).bind(crypto.randomUUID(), userId, 'FREE', 'active', nowIso, nowIso),
++                "INSERT INTO subscriptions (id, user_id, plan_name, plan_price, payment_id, status, started_at, expires_at, created_at) VALUES (?, ?, 'FREE', 0, NULL, 'active', ?, NULL, ?)"
++            ).bind(crypto.randomUUID(), userId, nowIso, nowIso),
+ 
+             // 4. Create Session
+             env.DB.prepare(
+-                "INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)"
+-            ).bind(crypto.randomUUID(), userId, refreshTokenVal, refreshExp, nowIso),
++                "INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, NULL, ?, 0, ?)"
++            ).bind(crypto.randomUUID(), userId, refreshTokenVal, ip, refreshExp.toString(), nowIso),
+ 
+             // 5. Audit Log (Wallet)
+             env.DB.prepare(
+-                "INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+-            ).bind(crypto.randomUUID(), userId, 20, 'bonus', 'signup_bonus', ip, nowIso),
++                "INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, 20, 20, 'bonus', 'signup_bonus', NULL, ?, ?)"
++            ).bind(crypto.randomUUID(), userId, ip, nowIso),
+ 
+             // 6. Event Log (Signup)
+             env.DB.prepare(
+-                "INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
+-            ).bind(crypto.randomUUID(), userId, 'signup', JSON.stringify({ ip, username }), nowIso)
++                "INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, 'signup', ?, ?, ?)"
++            ).bind(crypto.randomUUID(), userId, ip, JSON.stringify({ ip, username }), nowIso)
+         ]);
+ 
+         return new Response(JSON.stringify({
+diff --git a/functions/api/auth/sync.js b/functions/api/auth/sync.js
+index 8d2c16b..0b2b2cd 100644
+--- a/functions/api/auth/sync.js
++++ b/functions/api/auth/sync.js
+@@ -61,7 +61,7 @@ export async function onRequestPost({ request, env }) {
+ 
+         // ≡ƒ¢í∩╕Å [SECURITY LOCK] Fetch Existing Data + Wallet + Subscription
+         const [userRow, walletRow, subRow] = await Promise.all([
+-            env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first(),
++            env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first(),
+             env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
+             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+         ]);
+diff --git a/functions/api/chat/send.js b/functions/api/chat/send.js
+index 9c57506..0de1f66 100644
+--- a/functions/api/chat/send.js
++++ b/functions/api/chat/send.js
+@@ -70,7 +70,7 @@ export async function onRequestPost({ request, env }) {
+         const userMsgBody = message.trim();
+ 
+         // ≡ƒÜÇ FETCH ALL USER DATA (Handle + Profile + Memory)
+-        const userRow = await env.DB.prepare("SELECT username, profile_data FROM users WHERE id = ?").bind(userId).first();
++        const userRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first();
+         if (!userRow) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+ 
+         const userHandle = userRow.username || "Guest";
+@@ -104,8 +104,8 @@ export async function onRequestPost({ request, env }) {
+             `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
+ 
+             // c. Save Message
+-            env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role) VALUES (?, ?, ?, ?, ?, ?, ?)")
+-                .bind(crypto.randomUUID(), chatId, userId, userHandle, userMsgBody, nowIso, 'user')
++            env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
++                .bind(crypto.randomUUID(), chatId, userId, 'user', userMsgBody, nowIso)
+         ]);
+ 
+         if (batchResult[0].meta.changes === 0) {
+@@ -378,8 +378,8 @@ export async function onRequestPost({ request, env }) {
+         const aiNowIso = new Date().toISOString();
+         const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
+ 
+-        await env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+-            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, aiReply, aiNowIso, 'assistant', metadata).run();
++        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
++            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
+ 
+         return new Response(JSON.stringify({
+             success: true,
+diff --git a/functions/api/payment/verify.js b/functions/api/payment/verify.js
+index f398032..91aacc8 100644
+--- a/functions/api/payment/verify.js
++++ b/functions/api/payment/verify.js
+@@ -63,7 +63,7 @@ export async function onRequestPost({ request, env }) {
+ 
+         if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Missing parameters" }), { status: 400 });
+         }
+ 
+@@ -74,7 +74,7 @@ export async function onRequestPost({ request, env }) {
+         const generatedSignature = await generateHmacSha256(`${razorpay_order_id}|${razorpay_payment_id}`, secret);
+         if (generatedSignature !== razorpay_signature) {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
+         }
+ 
+@@ -121,7 +121,7 @@ export async function onRequestPost({ request, env }) {
+         }
+         else {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Invalid amount paid" }), { status: 400 });
+         }
+ 
+@@ -165,7 +165,7 @@ export async function onRequestPost({ request, env }) {
+         if (userId) {
+             const logId = crypto.randomUUID();
+             try {
+-                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
++                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
+             } catch (e) { }
+         }
+         return new Response(JSON.stringify({ error: "Verification failed", detail: err.message }), { status: 500 });

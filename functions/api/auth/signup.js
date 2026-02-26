@@ -5,10 +5,10 @@ export async function onRequestPost({ request, env }) {
     }
 
     try {
-        const { username, displayName, password, profileData } = await request.json();
+        const { username, displayName } = await request.json();
 
-        if (!username || !displayName || !password) {
-            return new Response(JSON.stringify({ error: "Username, Name, and Password are required." }), { status: 400 });
+        if (!username || !displayName) {
+            return new Response(JSON.stringify({ error: "Username and Name are required." }), { status: 400 });
         }
 
         // 1. Check if username taken
@@ -38,6 +38,7 @@ export async function onRequestPost({ request, env }) {
         const accessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
 
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
+        const userAgent = request.headers.get("user-agent") || "unknown";
 
         await env.DB.batch([
             // 1. Create User
@@ -52,8 +53,8 @@ export async function onRequestPost({ request, env }) {
 
             // 4. Create Session
             env.DB.prepare(
-                "INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, NULL, ?, 0, ?)"
-            ).bind(crypto.randomUUID(), userId, refreshTokenVal, ip, refreshExp.toString(), nowIso),
+                "INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)"
+            ).bind(crypto.randomUUID(), userId, refreshTokenVal, ip, userAgent, refreshExp.toString(), nowIso),
 
             // 5. Audit Log (Wallet)
             env.DB.prepare(

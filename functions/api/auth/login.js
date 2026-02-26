@@ -5,8 +5,9 @@ export async function onRequestPost({ request, env }) {
     }
 
     try {
-        const { username, password } = await request.json();
+        const { username } = await request.json();
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
+        const userAgent = request.headers.get("user-agent") || "unknown";
 
         // 1. Check for recent failed attempts for this username (Sentinel)
         const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
@@ -55,15 +56,15 @@ export async function onRequestPost({ request, env }) {
 
         await env.DB.batch([
             // 1. Update Last Login
-            env.DB.prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(nowIso, nowIso, user.id),
+            env.DB.prepare("UPDATE users SET updated_at = ? WHERE id = ?").bind(nowIso, user.id),
 
             // 2. Create Session
-            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso),
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)")
+                .bind(crypto.randomUUID(), user.id, refreshToken, ip, userAgent, refreshExp, nowIso),
 
             // 3. Event Log
-            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), user.id, 'login', JSON.stringify({ ip }), nowIso)
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), user.id, 'login', ip, JSON.stringify({ ip }), nowIso)
         ]);
 
         // Only set Secure flag when request is HTTPS (avoid Secure cookies on local HTTP dev)

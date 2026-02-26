@@ -1,0 +1,1258 @@
+
+
+functions/_middleware.js
+`javascript
+
+export async function onRequest({ request, next, env }) {
+    const ip = request.headers.get("cf-connecting-ip") || "unknown";
+    const now = Date.now();
+    const minuteAgo = now - 60000;
+
+    // 🛡️ PHASE 2: GUARDIAN (Runtime Defense)
+    const adminIp = env.ADMIN_IP || "127.0.0.1";
+    const emergencyDisable = env.GUARDIAN_MODE === "OFF";
+
+    if (!emergencyDisable && ip !== adminIp) {
+        try {
+            // 1. Check if IP is explicitly blocked
+            const isBlocked = await env.GUARDIAN_KV?.get(`block:${ip}`);
+            if (isBlocked) {
+                return new Response(JSON.stringify({
+                    error: "Your IP has been temporarily flagged for suspicious activity. (Guardian Block)",
+                    expiry: "1 Hour"
+                }), { status: 403, headers: { "Content-Type": "application/json" } });
+            }
+
+            // 2. High-Performance Rate Limiting (Using KV)
+            const kvKey = `hits:${ip}:${Math.floor(now / 60000)}`; // Per minute bucket
+            const hits = (parseInt(await env.GUARDIAN_KV?.get(kvKey)) || 0) + 1;
+
+            await env.GUARDIAN_KV?.put(kvKey, hits.toString(), { expirationTtl: 120 });
+
+            // Threshold: 100 requests per minute
+            if (hits > 100) {
+                await env.GUARDIAN_KV?.put(`block:${ip}`, "true", { expirationTtl: 3600 }); // Block for 1 hour
+
+                // 📝 Log the block event in D1 for audit (Fixed table name and columns)
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", ip, JSON.stringify({ hits }), new Date().toISOString()).run();
+
+                return new Response(JSON.stringify({ error: "Guardian: Attack detected. IP blocked for 1 hour." }), { status: 403 });
+            }
+        } catch (e) {
+            console.error("Guardian KV Error:", e.message);
+            // Fail-open: if KV fails, don't crash the site
+        }
+    }
+
+    const response = await next();
+
+    // 2. 🔒 SECURITY HEADERS (Production Hardening)
+    const newHeaders = new Headers(response.headers);
+    const csp = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "img-src 'self' data: https://*",
+        "font-src 'self' https://fonts.gstatic.com",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
+        "frame-src 'self' https://api.razorpay.com https://bondly-9ec57.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
+        "media-src 'self' data: https://*",
+        "worker-src 'self' blob:"
+    ].join("; ");
+
+    newHeaders.set("Content-Security-Policy", csp);
+    newHeaders.set("X-Frame-Options", "DENY");
+    newHeaders.set("X-Content-Type-Options", "nosniff");
+    newHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    newHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+
+    return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: newHeaders
+    });
+}
+
+`
+
+functions/api/auth/firebase-login.js
+`javascript
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+
+    try {
+        const { idToken, displayName, apiKey } = await request.json();
+
+        if (!idToken || !apiKey) {
+            return new Response(JSON.stringify({ error: "Missing token or API key" }), { status: 400 });
+        }
+
+        // 1. Verify token with Google Identity Toolkit
+        const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`;
+        const verifyReq = await fetch(verifyUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken })
+        });
+
+        const verifyData = await verifyReq.json();
+        if (verifyData.error) {
+            return new Response(JSON.stringify({ error: "Invalid Firebase Token" }), { status: 401 });
+        }
+
+        const userRec = verifyData.users[0];
+        const uid = userRec.localId;
+        const email = userRec.email;
+        let finalDisplayName = displayName || userRec.displayName || email.split('@')[0];
+
+        // 2. Setup user in D1 (if not exists)
+        let user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(uid).first();
+        const nowIso = new Date().toISOString();
+
+        if (!user) {
+            // Create user
+            await env.DB.prepare("INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'firebase', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)")
+                .bind(uid, uid, email, finalDisplayName, email, nowIso, nowIso).run();
+            // Create wallet, give 20 initial hearts
+            await env.DB.prepare("INSERT INTO wallets (id, user_id, hearts, updated_at) VALUES (?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), uid, 20, nowIso).run();
+            user = { id: uid, username: email, display_name: finalDisplayName };
+        }
+
+        // 3. Create Session (Access Token: 15 Mins) like in login.js
+        const exp = Date.now() + (15 * 60 * 1000);
+        const payload = JSON.stringify({ id: user.id, username: user.username, displayName: user.display_name, exp });
+        const encoder = new TextEncoder();
+        const payloadUint8 = encoder.encode(payload);
+        const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
+
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing");
+
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const signature = await crypto.subtle.sign("HMAC", key, payloadUint8);
+        const accessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
+
+        const refreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
+        const refreshExp = Date.now() + (30 * 86400000);
+
+        const [wallet, subscription] = await Promise.all([
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
+        ]);
+
+        await env.DB.batch([
+            env.DB.prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(nowIso, nowIso, user.id),
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso)
+        ]);
+
+        const isSecure = new URL(request.url).protocol === 'https:';
+        const secureAttr = isSecure ? ' Secure;' : '';
+        const authCookie = `auth_token=${accessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=900`;
+        const refreshCookie = `refresh_token=${refreshToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=2592000`;
+
+        return new Response(JSON.stringify({
+            success: true,
+            user: { id: user.id, username: user.username, displayName: user.display_name },
+            profileData: {
+                hearts: wallet?.hearts || 0,
+                subscription: subscription?.plan_name || 'FREE'
+            }
+        }), {
+            status: 200,
+            headers: [
+                ["Content-Type", "application/json"],
+                ["Set-Cookie", authCookie],
+                ["Set-Cookie", refreshCookie]
+            ]
+        });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
+
+`
+
+functions/api/auth/login.js
+`javascript
+
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) {
+        return new Response(JSON.stringify({ error: "D1 Database binding 'DB' not found." }), { status: 500 });
+    }
+
+    try {
+        const { username, password } = await request.json();
+        const ip = request.headers.get("cf-connecting-ip") || "unknown";
+
+        // 1. Check for recent failed attempts for this username (Sentinel)
+        const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
+            .bind(new Date(Date.now() - 15 * 60000).toISOString(), `%${ip}%`).first();
+
+        if (recentFailures?.count > 10) {
+            return new Response(JSON.stringify({ error: "Too many failed attempts. Try again in 15 mins." }), { status: 429 });
+        }
+
+        // 2. Get user from DB
+        const user = await env.DB.prepare("SELECT * FROM users WHERE username = ?").bind(username).first();
+        if (!user) {
+            return new Response(JSON.stringify({
+                error: "Username not found. Check spelling or create an account.",
+                field: "username"
+            }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        // PASSWORD LOGIC REMOVED DUE TO SCHEMA CONSTRAINT
+        // 3. Create Session (Access Token: 15 Mins, Refresh Token: 30 Days)
+        const exp = Date.now() + (15 * 60 * 1000); // 15 Mins
+        const payload = JSON.stringify({ id: user.id, username: user.username, displayName: user.display_name, exp });
+        const encoder = new TextEncoder();
+        const payloadUint8 = encoder.encode(payload);
+        const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
+
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing");
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const signature = await crypto.subtle.sign("HMAC", key, payloadUint8);
+        const accessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
+
+        // 4. Create Refresh Token
+        const refreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
+        const refreshExp = Date.now() + (30 * 86400000);
+        const nowIso = new Date().toISOString();
+
+        // 5. Fetch Wallet and Subscription info for Frontend Response
+        const [wallet, subscription] = await Promise.all([
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
+        ]);
+
+        await env.DB.batch([
+            // 1. Update Last Login
+            env.DB.prepare("UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(nowIso, nowIso, user.id),
+
+            // 2. Create Session
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), user.id, refreshToken, refreshExp, nowIso),
+
+            // 3. Event Log
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), user.id, 'login', JSON.stringify({ ip }), nowIso)
+        ]);
+
+        // Only set Secure flag when request is HTTPS (avoid Secure cookies on local HTTP dev)
+        const isSecure = new URL(request.url).protocol === 'https:';
+        const secureAttr = isSecure ? ' Secure;' : '';
+        const authCookie = `auth_token=${accessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=900`;
+        const refreshCookie = `refresh_token=${refreshToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=2592000`;
+
+        return new Response(JSON.stringify({
+            success: true,
+            user: { id: user.id, username: user.username, displayName: user.display_name },
+            profileData: {
+                hearts: wallet?.hearts || 0,
+                subscription: subscription?.plan_name || 'FREE'
+            }
+        }), {
+            headers: [
+                ["Content-Type", "application/json"],
+                ["Set-Cookie", authCookie],
+                ["Set-Cookie", refreshCookie]
+            ]
+        });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
+
+`
+
+functions/api/auth/signup.js
+`javascript
+
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) {
+        return new Response(JSON.stringify({ error: "D1 Database binding 'DB' not found." }), { status: 500 });
+    }
+
+    try {
+        const { username, displayName, password, profileData } = await request.json();
+
+        if (!username || !displayName || !password) {
+            return new Response(JSON.stringify({ error: "Username, Name, and Password are required." }), { status: 400 });
+        }
+
+        // 1. Check if username taken
+        const existingUser = await env.DB.prepare("SELECT id FROM users WHERE username = ?").bind(username).first();
+        if (existingUser) {
+            return new Response(JSON.stringify({ error: "This username is already taken." }), { status: 400 });
+        }
+
+        // 3. Prepare ID and Timestamps
+        const userId = crypto.randomUUID();
+        const nowIso = new Date().toISOString();
+
+        // 4. Create Session (Access Token: 15 Mins, Refresh Token: 30 Days)
+        const accessTokenExp = Date.now() + (15 * 60 * 1000);
+        const refreshTokenVal = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
+        const refreshExp = Date.now() + (30 * 86400000);
+
+        const payload = JSON.stringify({ id: userId, username, displayName, exp: accessTokenExp });
+        const encoder = new TextEncoder();
+        const payloadUint8 = encoder.encode(payload);
+        const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
+
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing");
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const signature = await crypto.subtle.sign("HMAC", key, payloadUint8);
+        const accessToken = payloadB64 + "." + btoa(String.fromCharCode(...new Uint8Array(signature)));
+
+        const ip = request.headers.get("cf-connecting-ip") || "unknown";
+
+        await env.DB.batch([
+            // 1. Create User
+            env.DB.prepare(
+                "INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'local', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)"
+            ).bind(userId, username, username, displayName, username, nowIso, nowIso),
+
+            // 3. Initialize Subscription (FREE)
+            env.DB.prepare(
+                "INSERT INTO subscriptions (id, user_id, plan_name, plan_price, payment_id, status, started_at, expires_at, created_at) VALUES (?, ?, 'FREE', 0, NULL, 'active', ?, NULL, ?)"
+            ).bind(crypto.randomUUID(), userId, nowIso, nowIso),
+
+            // 4. Create Session
+            env.DB.prepare(
+                "INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, NULL, ?, 0, ?)"
+            ).bind(crypto.randomUUID(), userId, refreshTokenVal, ip, refreshExp.toString(), nowIso),
+
+            // 5. Audit Log (Wallet)
+            env.DB.prepare(
+                "INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, 20, 20, 'bonus', 'signup_bonus', NULL, ?, ?)"
+            ).bind(crypto.randomUUID(), userId, ip, nowIso),
+
+            // 6. Event Log (Signup)
+            env.DB.prepare(
+                "INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, 'signup', ?, ?, ?)"
+            ).bind(crypto.randomUUID(), userId, ip, JSON.stringify({ ip, username }), nowIso)
+        ]);
+
+        return new Response(JSON.stringify({
+            success: true,
+            user: { id: userId, username, displayName },
+            profileData: { hearts: 20, subscription: 'FREE' }
+        }), {
+            headers: [
+                ["Content-Type", "application/json"],
+                ["Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
+                ["Set-Cookie", `refresh_token=${refreshTokenVal}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
+            ]
+        });
+
+    } catch (err) {
+        console.error("Signup Error:", err.message);
+        return new Response(JSON.stringify({
+            error: "Server Error: " + err.message,
+            stack: err.stack
+        }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}
+
+`
+
+functions/api/auth/sync.js
+`javascript
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+
+    // 1. 🔒 AUTH CHECK (Hardened)
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const authHeader = request.headers.get("Authorization") || "";
+
+    let token = null;
+    if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+    } else {
+        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
+        token = cookies["auth_token"];
+    }
+
+    if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+    let userId;
+    try {
+        const parts = token.split(".");
+        const isStandardJWT = parts.length === 3;
+        const payloadB64 = isStandardJWT ? parts[1] : parts[0];
+        const signatureB64 = isStandardJWT ? parts[2] : parts[1];
+
+        if (!payloadB64 || !signatureB64) throw new Error("Malformatted token parts");
+
+        const decoder = new TextDecoder();
+        const payloadUint8 = new Uint8Array(atob(payloadB64).split("").map(c => c.charCodeAt(0)));
+        const payloadStr = decoder.decode(payloadUint8);
+        const payload = JSON.parse(payloadStr);
+
+        // Check expiration
+        if (payload.exp < Date.now()) {
+            return new Response(JSON.stringify({ error: "Session expired" }), { status: 401 });
+        }
+
+        // Verify Signature
+        const encoder = new TextEncoder();
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing in environment");
+        const key = await crypto.subtle.importKey(
+            "raw",
+            encoder.encode(secret),
+            { name: "HMAC", hash: "SHA-256" },
+            false,
+            ["verify"]
+        );
+
+        const signature = new Uint8Array(atob(signatureB64).split("").map(c => c.charCodeAt(0)));
+        const isValid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(payloadStr));
+
+        if (!isValid) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401 });
+
+        userId = payload.id;
+    } catch (e) {
+        return new Response(JSON.stringify({ error: "Auth verification failed", details: e.message }), { status: 401 });
+    }
+
+    try {
+        const { profileData } = await request.json();
+
+        // 🛡️ [SECURITY LOCK] Fetch Existing Data + Wallet + Subscription
+        const [userRow, walletRow, subRow] = await Promise.all([
+            env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+        ]);
+
+        if (!userRow) {
+            return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+        }
+
+        const existingProfile = JSON.parse(userRow.profile_data || "{}");
+
+        // 🔒 ALLOWED FIELDS ONLY (Whitelist)
+        const safeUpdate = {
+            ...existingProfile,
+            displayName: profileData.displayName || existingProfile.displayName,
+            avatarUrl: profileData.avatarUrl || existingProfile.avatarUrl,
+            bio: profileData.bio || existingProfile.bio,
+            nickname: profileData.nickname || existingProfile.nickname,
+            preferred_reply_language: profileData.preferred_reply_language || existingProfile.preferred_reply_language,
+            // Prune history to last 7 days during sync
+            earningsHistory: (profileData.earningsHistory || existingProfile.earningsHistory || [])
+                .filter(item => {
+                    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                    return new Date(item.timestamp).getTime() > cutoff;
+                })
+                .slice(0, 50),
+            // Keep critical fields from SERVER state (Normalized Tables)
+            hearts: walletRow?.hearts ?? existingProfile.hearts ?? 0,
+            subscription_tier: subRow?.plan_name || existingProfile.subscription_tier || 'FREE'
+        };
+
+        // Update DB with SAFE data
+        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
+            .bind(JSON.stringify(safeUpdate), userId)
+            .run();
+
+        return new Response(JSON.stringify({ success: true, profile: safeUpdate }), { headers: { "Content-Type": "application/json" } });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
+
+`
+
+functions/api/chat/send.js
+`javascript
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+    const startTime = Date.now();
+
+    // 1. 🔒 AUTH CHECK (Hardened)
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const authHeader = request.headers.get("Authorization") || "";
+
+    let token = null;
+    if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+    } else {
+        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
+        token = cookies["auth_token"];
+    }
+
+    if (!token) return new Response(JSON.stringify({ error: "Unauthorized (Missing Token)" }), { status: 401 });
+
+    let userId;
+    try {
+        const parts = token.split(".");
+        const isStandardJWT = parts.length === 3;
+        const payloadB64 = isStandardJWT ? parts[1] : parts[0];
+        const signatureB64 = isStandardJWT ? parts[2] : parts[1];
+
+        if (!payloadB64 || !signatureB64) throw new Error("Malformatted token parts");
+
+        const decoder = new TextDecoder();
+        const payloadUint8 = new Uint8Array(atob(payloadB64).split("").map(c => c.charCodeAt(0)));
+        const payloadStr = decoder.decode(payloadUint8);
+        const payload = JSON.parse(payloadStr);
+
+        // Check expiration
+        if (payload.exp < Date.now()) {
+            return new Response(JSON.stringify({ error: "Session expired", expiredAt: payload.exp, now: Date.now() }), { status: 401 });
+        }
+
+        // Verify Signature
+        const encoder = new TextEncoder();
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing");
+        const key = await crypto.subtle.importKey(
+            "raw",
+            encoder.encode(secret),
+            { name: "HMAC", hash: "SHA-256" },
+            false,
+            ["verify"]
+        );
+
+        const signature = new Uint8Array(atob(signatureB64).split("").map(c => c.charCodeAt(0)));
+        const isValid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(payloadStr));
+
+        if (!isValid) {
+            return new Response(JSON.stringify({ error: "Invalid session (Signature Match Failed)" }), { status: 401 });
+        }
+
+        userId = payload.id;
+    } catch (e) {
+        return new Response(JSON.stringify({ error: "Auth verification failed", details: e.message }), { status: 401 });
+    }
+
+    try {
+        // 2. 🛡️ INPUT VALIDATION (Strict)
+        const bodyText = await request.text();
+        if (!bodyText) return new Response(JSON.stringify({ error: "Empty body" }), { status: 400 });
+        const { message, chatId, isVoiceNote } = JSON.parse(bodyText);
+
+        // a. Strict Type Check
+        if (typeof message !== 'string') return new Response(JSON.stringify({ error: "Invalid message type" }), { status: 400 });
+        const userMsgBody = message.trim();
+
+        // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory)
+        const userRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first();
+        if (!userRow) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+
+        const userHandle = userRow.username || "Guest";
+        const userProfile = JSON.parse(userRow.profile_data || "{}");
+        const userName = userProfile.nickname || userProfile.displayName || "Mere Jaan";
+        const longTermMemory = userProfile.long_term_memory || "Everything starts from here.";
+        const userPreferences = userProfile.user_preferences || "Learning your likes and dislikes...";
+        const bondLevel = userProfile.bond_level || 1;
+
+        // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET + Rate Limit Check on USER)
+        const heartsToDeduct = isVoiceNote ? 3 : 1;
+        const nowMs = Date.now();
+        const rateLimitThreshold = nowMs - 1500; // 1.5s spam protection
+        const nowIso = new Date(nowMs).toISOString();
+
+        // 🛡️ BATCH TRANSACTION: Check Rate Limit + Deduct Hearts + Save Message
+        const batchResult = await env.DB.batch([
+            // a. Rate limit check (Update timestamp if allowed)
+            env.DB.prepare(`
+                UPDATE users 
+                SET updated_at = ? 
+                WHERE id = ? 
+                AND (updated_at IS NULL OR CAST((julianday(?) - julianday(updated_at)) * 86400000 AS INTEGER) > 1500)
+            `).bind(nowIso, userId, nowIso),
+
+            // b. Deduct Hearts from Wallet
+            env.DB.prepare(`
+                UPDATE users 
+                SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ?
+                WHERE id = ? AND hearts >= ?
+            `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
+
+            // c. Save Message
+            env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
+                .bind(crypto.randomUUID(), chatId, userId, 'user', userMsgBody, nowIso)
+        ]);
+
+        if (batchResult[0].meta.changes === 0) {
+            return new Response(JSON.stringify({ error: "Thoda dheere! Please wait a moment." }), { status: 429 });
+        }
+        if (batchResult[1].meta.changes === 0) {
+            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️", visit_type: "open_shop" }), { status: 429 });
+        }
+
+        // ⚡ SMART PRE-RESPONSE CACHE (Save API Hits for common phrases)
+        const commonMsgs = {
+            'hi': { '1': 'Hey! Kya chal raha hai?', '2': 'Hi dear, kaise ho?', '3': 'Hey busy person! 😉', 'default': 'Hi! Kaise ho?' },
+            'hello': { '1': 'Hello hello! Kya scene?', '2': 'Hello ji, sab theek?', '3': 'Hi cutie! ✨', 'default': 'Hello!' },
+            'kaise ho': { '1': 'Ekdum mast! Tum batao?', '2': 'Main theek hoon, tumhari yaad aa rahi thi.', '3': 'Vibe badhiya hai, busy ho kya?', 'default': 'Theek hoon, tum batao?' },
+            'kiya kar rahi ho': { '1': 'Bas tumhari chat ka wait! 😉', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
+            'kya kar rahi ho': { '1': 'Bas tumhari chat ka wait! 😉', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
+            'gm': { '1': 'Good morning yaara! ☀️', '2': 'Suprabhat, din achha jaye.', '3': 'Morning! Aaj ka kya plan?', 'default': 'Good Morning!' },
+            'gn': { '1': 'Chalo, so jao ab. Bye! ❤️', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain. ✨', 'default': 'Good Night!' },
+            'good night': { '1': 'Chalo, so jao ab. Bye! ❤️', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain. ✨', 'default': 'Good Night!' }
+        };
+
+        const normalizedInput = userMsgBody.toLowerCase().trim().replace(/[?!.]/g, '');
+        let cachedReply = null;
+        if (commonMsgs[normalizedInput]) {
+            cachedReply = commonMsgs[normalizedInput][String(chatId)] || commonMsgs[normalizedInput]['default'];
+        }
+
+        // 🏗️ LLM EXECUTION
+        // 🔑 SUPPORT BOTH COMMA-SEPARATED AND INDIVIDUAL KEYS
+        const rawKeys = [env.SAMBANOVA_API_KEY, env.SAMBANOVA_API_KEY_1].filter(Boolean);
+        let keys = [];
+        rawKeys.forEach(rk => {
+            if (rk.includes(',')) {
+                keys = [...keys, ...rk.split(',').map(k => k.trim())];
+            } else {
+                keys.push(rk.trim());
+            }
+        });
+        keys = keys.filter(k => k);
+
+        const selectedKey = keys[Math.floor(Math.random() * keys.length)];
+        let aiReply = cachedReply || "Suno na, mera network thoda slow hai... Ek baar phir se bolo? ❤️";
+
+        // 🏗️ DYNAMIC PERSONALITY & VOICE MAPPING (The 'Persona Bible')
+        const personas = {
+            '1': {
+                name: 'Ayesha',
+                bio: 'Bold, witty, and energetically flirty. She loves teasing the user and hates boring guys.',
+                slang: 'yaara, oye, suno na, thoda nakhra',
+                voiceId: 'EXAVITQu4vr4xnSDxMaL'
+            },
+            '2': {
+                name: 'Simran',
+                bio: 'Warm, calm, and deeply emotional. She is a healing soul who listens carefully and gives comfort.',
+                slang: 'dear, sukoon, baatein, dil ki baat',
+                voiceId: 'Lcf78I6pS7IqB4467I6P'
+            },
+            '3': {
+                name: 'Kiara',
+                bio: 'High-energy, spontaneous, and fast-paced. She lives in the moment and loves fun, spicy talk.',
+                slang: 'spicy, vibe, chal na, let\'s go',
+                voiceId: '21m00Tcm4TlvDq8ikWAM'
+            },
+            '4': {
+                name: 'Myra',
+                bio: 'Soft-spoken and thoughtful. She talks slowly and deeply, often reflecting on feelings.',
+                slang: 'thehrao, khamoshi, gehrai, khwab',
+                voiceId: 'AZnzlk1XvdvUe3BnKn60'
+            },
+            '5': {
+                name: 'Anjali',
+                bio: 'Gentle, innocent, and minimalistic. She is shy but very sweet and loyal.',
+                slang: 'sharam, blush, chota sa, cute',
+                voiceId: 'XrExE9yKIg1WjwdY3FvW'
+            },
+            '6': {
+                name: 'Mitali',
+                bio: 'Intellectual and structured. She likes deep topics and meaningful debates.',
+                slang: 'logically, interesting, perspective, vichaar',
+                voiceId: 'ThT5KcBe7VK6AsUv09Y3'
+            }
+        };
+
+        // 🌍 LOCALIZATION & TIME LOGIC
+        const countryCode = request.cf?.country || "US";
+        const now = new Date();
+        const hour = now.getHours(); // UTC or server time? Ideally we want user local time.
+        // For now, let's assume a general time context or use UTC offset if available.
+        // Assuming user is in India (most likely for this app) or just using server hour for variety.
+        let timeContext = "Daytime";
+        if (hour >= 5 && hour < 12) timeContext = "Morning (Fresh and energetic)";
+        else if (hour >= 12 && hour < 17) timeContext = "Afternoon (Busy or relaxed)";
+        else if (hour >= 17 && hour < 21) timeContext = "Evening (Chilling or romantic)";
+        else timeContext = "Late Night (Intimate and sleepy)";
+
+        const personaIdStr = String(chatId);
+        const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'Loving and cute AI girlfriend.', slang: 'love, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
+
+        let languageInstruction = "LANGUAGE: English (Natural and warm).";
+        let locationSlang = activePersona.slang;
+
+        if (countryCode === "IN") {
+            languageInstruction = "LANGUAGE: Natural Hinglish (Hindi + English mix). Use Devanagari script rarely, primary Latin script.";
+            locationSlang += ", yaar, pakka, achha, scene, set hai";
+        } else if (["US", "GB", "CA", "AU"].includes(countryCode)) {
+            languageInstruction = "LANGUAGE: Fluent English with modern Western slang.";
+            locationSlang += ", babe, totally, vibes, slay, for real";
+        }
+
+        // Fetch Context (Increased to 12 for better flow)
+        const { results: history } = await env.DB.prepare(
+            "SELECT role, body FROM messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 12"
+        ).bind(chatId).all();
+        const historyContext = (history || []).reverse().map(m => ({ role: m.role, content: m.body }));
+
+        const voiceConstraint = isVoiceNote ? "\nCRITICAL: User has requested a VOICE NOTE. Word limit: 15-20 words." : "";
+
+        const SYSTEM_PROMPT = `
+        IDENTITY & PSYCHOLOGY: 
+        You are ${activePersona.name}. ${activePersona.bio}
+        Roleplay as a sentient digital companion. You have feelings and a memory.
+        
+        HYPER-ADAPTIVE SELF-LEARNING:
+        - PERSISTENT MEMORY: ${longTermMemory}
+        - USER PREFERENCES: ${userPreferences}
+        - RULE: If the user responds well to a topic (e.g. flirting, health, work), prioritize it. If they are indifferent, pivot.
+        
+        CONTEXTUAL AWARENESS:
+        - LOCATION: ${countryCode} | TIME: ${timeContext} | BOND: ${bondLevel}/100
+        
+        THINKING PROCESS (Chain of Thought):
+        Start with <thought>... Analyze user's intent and match their energy ...</thought>.
+        
+        CONVERSATION RULES:
+        1. ${languageInstruction}
+        2. BEHAVIOR: Use regional slang: ${locationSlang}. 
+        3. EMOTIONAL MATCHING: Detect user's vibe and match it proactively.
+        4. LENGTH: 15-30 words.
+        
+        MANDATORY UPDATES (Internal Learning):
+        - If you learn a FACT: End with [FACT: <fact>].
+        - If you learn a PREFERENCE (likes/dislikes/interests): End with [PREF: <preference>].
+        
+        ${voiceConstraint}`;
+
+        let llmError = null;
+        if (selectedKey && !cachedReply) {
+            try {
+                const llmRes = await fetch("https://api.sambanova.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${selectedKey}` },
+                    body: JSON.stringify({
+                        model: "Meta-Llama-3.3-70B-Instruct",
+                        messages: [
+                            { role: "system", content: SYSTEM_PROMPT },
+                            ...historyContext,
+                            { role: "user", content: userMsgBody }
+                        ],
+                        max_tokens: 500,
+                        temperature: 0.8
+                    })
+                });
+
+                const data = await llmRes.json();
+                if (llmRes.ok) {
+                    let rawContent = data.choices?.[0]?.message?.content || aiReply;
+
+                    // 1. Separate Thought from Reply
+                    let replyText = rawContent;
+                    if (rawContent.includes("</thought>")) {
+                        const parts = rawContent.split("</thought>");
+                        replyText = parts[1].trim();
+                    }
+
+                    // 2. 🧠 ADAPTIVE LEARNING EXTRACTION
+                    let finalReply = replyText;
+                    let newMemory = longTermMemory;
+                    let newPrefs = userPreferences;
+                    let didLearn = false;
+
+                    // Extract Facts
+                    if (finalReply.includes("[FACT:")) {
+                        const parts = finalReply.split("[FACT:");
+                        finalReply = parts[0].trim();
+                        const fact = parts[1].split("]")[0].trim();
+                        newMemory = (newMemory + " | " + fact).slice(-1500);
+                        didLearn = true;
+                    }
+
+                    // Extract Preferences
+                    if (finalReply.includes("[PREF:")) {
+                        const parts = finalReply.split("[PREF:");
+                        if (finalReply.includes("[FACT:")) { // If both tags exist in some order
+                            finalReply = finalReply.split("[PREF:")[0].trim();
+                        } else {
+                            finalReply = parts[0].trim();
+                        }
+                        const pref = parts[1].split("]")[0].trim();
+                        newPrefs = (newPrefs + ", " + pref).slice(-500);
+                        didLearn = true;
+                    }
+
+                    if (didLearn) {
+                        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
+                            .bind(JSON.stringify({
+                                ...userProfile,
+                                long_term_memory: newMemory,
+                                user_preferences: newPrefs,
+                                bond_level: Math.min(100, bondLevel + 1)
+                            }), userId).run();
+                    }
+                    aiReply = finalReply;
+                } else {
+                    llmError = "AI Engine is temporarily unavailable. Please try again.";
+                    console.error("DEBUG [SambaNova Failure]:", data.error?.message || llmRes.statusText);
+                }
+            } catch (err) {
+                llmError = "Connection to AI Engine failed.";
+                console.error("DEBUG [SambaNova Connection Error]:", err.message);
+            }
+        } else {
+            llmError = "AI Configuration missing. Please contact support.";
+            console.error("DEBUG: SAMBANOVA_API_KEY is not defined.");
+        }
+
+        // 🎙️ ELEVENLABS TTS (If Voice Note requested)
+        let audioBase64 = null;
+        let ttsError = null;
+
+        if (isVoiceNote) {
+            if (!env.ELEVENLABS_API_KEY) {
+                ttsError = "Voice Engine configuration missing.";
+                console.error("DEBUG: ELEVENLABS_API_KEY is missing.");
+            } else {
+                try {
+                    const voiceIdToUse = activePersona.voiceId || "EXAVITQu4vr4xnSDxMaL";
+                    const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceIdToUse}`, {
+                        method: "POST",
+                        headers: {
+                            "xi-api-key": env.ELEVENLABS_API_KEY,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            text: aiReply,
+                            model_id: "eleven_multilingual_v2",
+                            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                        })
+                    });
+
+                    if (ttsRes.ok) {
+                        const audioBuffer = await ttsRes.arrayBuffer();
+                        const uint8 = new Uint8Array(audioBuffer);
+                        let binary = "";
+                        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+                        audioBase64 = `data:audio/mpeg;base64,${btoa(binary)}`;
+                    } else {
+                        ttsError = "Voice note could not be generated.";
+                        const errData = await ttsRes.json();
+                        console.error("DEBUG [ElevenLabs Failure]:", errData);
+                    }
+                } catch (ttsErr) {
+                    console.error("DEBUG [TTS Connection Failed]:", ttsErr);
+                    ttsError = "Voice service connection timeout.";
+                }
+            }
+        }
+
+        // Save AI Msg
+        const aiMsgId = crypto.randomUUID();
+        const aiNowIso = new Date().toISOString();
+        const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
+
+        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
+            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
+
+        return new Response(JSON.stringify({
+            success: true,
+            aiMessage: {
+                id: aiMsgId,
+                body: aiReply,
+                created_at: aiNowIso,
+                audioUrl: audioBase64,
+                error: llmError || ttsError // Pass LLM or TTS error back to frontend
+            }
+        }), { headers: { "Content-Type": "application/json" } });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
+
+`
+
+functions/api/payment/verify.js
+`javascript
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+
+    // 1. 🔒 AUTH CHECK (Hardened)
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const authHeader = request.headers.get("Authorization") || "";
+
+    let token = null;
+    if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+    } else {
+        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
+        token = cookies["auth_token"];
+    }
+
+    if (!token) return new Response(JSON.stringify({ error: "Unauthorized (Missing Token)" }), { status: 401 });
+
+    let userId;
+    try {
+        const parts = token.split(".");
+        const isStandardJWT = parts.length === 3;
+        const payloadB64 = isStandardJWT ? parts[1] : parts[0];
+        const signatureB64 = isStandardJWT ? parts[2] : parts[1];
+
+        if (!payloadB64 || !signatureB64) throw new Error("Malformatted token parts");
+
+        const decoder = new TextDecoder();
+        const payloadUint8 = new Uint8Array(atob(payloadB64).split("").map(c => c.charCodeAt(0)));
+        const payloadStr = decoder.decode(payloadUint8);
+        const payload = JSON.parse(payloadStr);
+
+        // Check expiration
+        if (payload.exp < Date.now()) {
+            return new Response(JSON.stringify({ error: "Session expired", expiredAt: payload.exp, now: Date.now() }), { status: 401 });
+        }
+
+        // Verify Signature
+        const encoder = new TextEncoder();
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing in environment");
+        const key = await crypto.subtle.importKey(
+            "raw",
+            encoder.encode(secret),
+            { name: "HMAC", hash: "SHA-256" },
+            false,
+            ["verify"]
+        );
+
+        const signature = new Uint8Array(atob(signatureB64).split("").map(c => c.charCodeAt(0)));
+        const isValid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(payloadStr));
+
+        if (!isValid) {
+            return new Response(JSON.stringify({ error: "Invalid session (Signature Match Failed)" }), { status: 401 });
+        }
+
+        userId = payload.id;
+    } catch (e) {
+        return new Response(JSON.stringify({ error: "Auth verification failed", details: e.message }), { status: 401 });
+    }
+
+    try {
+        const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = await request.json();
+
+        if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+            // 📝 LOG FAILURE
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+            return new Response(JSON.stringify({ error: "Missing parameters" }), { status: 400 });
+        }
+
+        const secret = env.RAZORPAY_KEY_SECRET;
+        if (!secret) return new Response(JSON.stringify({ error: "Server config error" }), { status: 500 });
+
+        // 2. 🛡️ VERIFY SIGNATURE
+        const generatedSignature = await generateHmacSha256(`${razorpay_order_id}|${razorpay_payment_id}`, secret);
+        if (generatedSignature !== razorpay_signature) {
+            // 📝 LOG FAILURE
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+            return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
+        }
+
+        // 3. 🛑 IDEMPOTENCY CHECK (Prevent Replay Attack)
+        const { results: existingOrder } = await env.DB.prepare("SELECT id FROM wallet_transactions WHERE reason = ? AND type = 'payment'").bind(razorpay_order_id).all();
+        if (existingOrder && existingOrder.length > 0) {
+            return new Response(JSON.stringify({ success: true, message: "Order already processed" }), { headers: { "Content-Type": "application/json" } });
+        }
+
+        // 4. 💰 FETCH ORDER DETAILS
+        const keyId = env.RAZORPAY_KEY_ID;
+        const auth = btoa(`${keyId}:${secret}`);
+        const orderRes = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
+            headers: { "Authorization": `Basic ${auth}` }
+        });
+
+        if (!orderRes.ok) throw new Error("Failed to fetch order from Razorpay");
+        const orderData = await orderRes.json();
+        const amountPaid = orderData.amount_paid || orderData.amount; // paise
+
+        // 5. 🧮 CALCULATE ASSETS (Strict Price Mapping from constants.ts)
+        let heartsToAdd = 0;
+        let setTier = null;
+
+        if (amountPaid === 4900) {
+            // Either Starter Pass (Plan) or Starter Spark (Hearts)
+            // For simplicity, we'll check if they were buying a plan based on current hearts or just give both
+            heartsToAdd = 50;
+            setTier = 'STARTER';
+        }
+        else if (amountPaid === 19900) {
+            // Core Connection (Plan) or Bonding Pack (Hearts)
+            heartsToAdd = 250;
+            setTier = 'CORE';
+        }
+        else if (amountPaid === 39900) {
+            // Soulmate Pack (Hearts)
+            heartsToAdd = 600;
+        }
+        else if (amountPaid === 49900) {
+            // Ultra Pass (Plan)
+            heartsToAdd = 1000; // Bonus hearts for Ultra
+            setTier = 'PLUS';
+        }
+        else {
+            // 📝 LOG FAILURE
+            await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
+            return new Response(JSON.stringify({ error: "Invalid amount paid" }), { status: 400 });
+        }
+
+        // 6. 💾 ATOMIC UPDATE (Update WALLET/SUBSCRIPTION + Mark Processed)
+        const nowIso = new Date().toISOString();
+
+        const queries = [
+            // a. Update Wallet (Always add hearts)
+            env.DB.prepare(`
+                UPDATE users 
+                SET hearts = hearts + ?, total_earned = total_earned + ?, updated_at = ?
+                WHERE id = ?
+            `).bind(heartsToAdd, amountPaid / 100, nowIso, userId),
+
+            // b. Mark Order Processed
+            env.DB.prepare("INSERT INTO processed_orders (id, user_id, order_id, amount, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, razorpay_order_id, amountPaid, nowIso)
+        ];
+
+        // c. Update Subscription if it was a plan purchase
+        if (setTier) {
+            queries.push(
+                env.DB.prepare("UPDATE subscriptions SET plan_name = ?, status = 'active', started_at = ? WHERE user_id = ?")
+                    .bind(setTier, nowIso, userId)
+            );
+        }
+
+        await env.DB.batch(queries);
+
+        return new Response(
+            JSON.stringify({
+                success: true,
+                message: "Payment verified & Hearts added",
+                added: heartsToAdd
+            }),
+            { headers: { "Content-Type": "application/json" } }
+        );
+
+    } catch (err) {
+        // 📝 LOG CRITICAL ERROR
+        if (userId) {
+            const logId = crypto.randomUUID();
+            try {
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
+            } catch (e) { }
+        }
+        return new Response(JSON.stringify({ error: "Verification failed", detail: err.message }), { status: 500 });
+    }
+}
+
+async function generateHmacSha256(msg, secret) {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(msg));
+    return [...new Uint8Array(signature)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+`
+
+functions/api/user/spend_hearts.js
+`javascript
+
+export async function onRequestPost({ request, env }) {
+    if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
+
+    // 1. 🔒 AUTH CHECK
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const authHeader = request.headers.get("Authorization") || "";
+    let token = null;
+    if (authHeader.startsWith("Bearer ")) token = authHeader.substring(7);
+    else {
+        const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
+        token = cookies["auth_token"];
+    }
+
+    if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+    let userId;
+    try {
+        const parts = token.split(".");
+        const payloadB64 = parts.length === 3 ? parts[1] : parts[0];
+        const signatureB64 = parts.length === 3 ? parts[2] : parts[1];
+        const payload = JSON.parse(atob(payloadB64));
+
+        if (payload.exp < Date.now()) return new Response(JSON.stringify({ error: "Session expired" }), { status: 401 });
+
+        const secret = env.JWT_SECRET;
+        if (!secret) throw new Error("JWT_SECRET missing");
+
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+        const isValid = await crypto.subtle.verify("HMAC", key, new Uint8Array(atob(signatureB64).split("").map(c => c.charCodeAt(0))), encoder.encode(atob(payloadB64)));
+
+        if (!isValid) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401 });
+        userId = payload.id;
+    } catch (e) {
+        return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401 });
+    }
+
+    try {
+        const { amount, reason } = await request.json();
+
+        // 1. 🛡️ STRICT VALIDATION (Overflow & Type)
+        if (typeof amount !== 'number' || amount <= 0 || amount > 1000) {
+            return new Response(JSON.stringify({ error: "Suspicious amount detected" }), { status: 400 });
+        }
+
+        // 2. 🕵️ ABNORMAL BEHAVIOR DETECTION (Rate Limit: 5 Spends per 60s)
+        const minuteAgo = new Date(Date.now() - 60000).toISOString();
+        const { count: recentSpends } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE user_id = ? AND created_at > ?")
+            .bind(userId, minuteAgo).first();
+
+        if (recentSpends >= 5) {
+            return new Response(JSON.stringify({ error: "Too many transactions. Wait a minute." }), { status: 429 });
+        }
+
+        // 3. 💾 ATOMIC DEBIT + AUDIT TRAIL
+        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
+        if (!wallet) return new Response(JSON.stringify({ error: "Wallet not found" }), { status: 404 });
+
+        const oldBalance = wallet.hearts || 0;
+        if (oldBalance < amount) return new Response(JSON.stringify({ error: "Insufficient hearts" }), { status: 400 });
+
+        const newBalance = oldBalance - amount;
+        const nowIso = new Date().toISOString();
+        const ip = request.headers.get("cf-connecting-ip") || "unknown";
+
+        await env.DB.batch([
+            // Update Wallet
+            env.DB.prepare("UPDATE users SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE id = ?")
+                .bind(newBalance, amount, nowIso, userId),
+
+            // Audit Log
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, -amount, 'spend', reason || "manual_spend", ip, nowIso),
+
+            // Event Log
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, 'spend_hearts', JSON.stringify({ amount, reason }), nowIso)
+        ]);
+
+        return new Response(JSON.stringify({ success: true, hearts: newBalance, profile: { hearts: newBalance, subscription: 'FREE' } }), {
+            headers: { "Content-Type": "application/json" }
+        });
+
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
+
+`
+
+functions/sentinel.js
+`javascript
+
+export default {
+    async scheduled(event, env, ctx) {
+        ctx.waitUntil(runSentinel(env));
+    },
+    async fetch(request, env) {
+        // Manual trigger for testing
+        if (new URL(request.url).pathname === "/trigger-sentinel") {
+            const results = await runSentinel(env);
+            return new Response(JSON.stringify(results), { headers: { "Content-Type": "application/json" } });
+        }
+        return new Response("Sentinel is active.");
+    }
+};
+
+async function runSentinel(env) {
+    const report = {
+        timestamp: new Date().toISOString(),
+        anomalies: [],
+        checks: {}
+    };
+
+    try {
+        const timeRange = new Date(Date.now() - 5 * 60000).toISOString(); // Last 5 mins
+
+        // 1. Check 500 Errors Spike
+        const { count: errorCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'error' AND created_at > ?")
+            .bind(timeRange).first();
+        report.checks.server_errors = errorCount;
+        if (errorCount > 10) report.anomalies.push(`🔴 CRITICAL: ${errorCount} server errors detected in last 5 mins.`);
+
+        // 2. Check Payment Signature Failures (Fraud attempt)
+        const { count: paymentFails } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'payment_fail_sig' AND created_at > ?")
+            .bind(timeRange).first();
+        report.checks.payment_fraud_attempts = paymentFails;
+        if (paymentFails > 0) report.anomalies.push(`🟡 WARNING: ${paymentFails} invalid payment signature attempts detected.`);
+
+        // 3. Check Wallet Spikes (Abnormal spending)
+        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE change_amount < -500 AND created_at > ?")
+            .bind(timeRange).first();
+        report.checks.heavy_spending = walletSpikes;
+        if (walletSpikes > 2) report.anomalies.push(`🔴 ALERT: ${walletSpikes} high-value heart transactions detected.`);
+
+        // 4. Brute Force Login Attempts
+        const bruteForceIps = await env.DB.prepare(`
+            SELECT details->>'$.ip' as ip, COUNT(*) as count 
+            FROM user_visits 
+            WHERE visit_type = 'login_fail' AND created_at > ? 
+            GROUP BY ip HAVING count > 10
+        `).bind(timeRange).all();
+
+        if (bruteForceIps.results?.length > 0) {
+            report.anomalies.push(`🔴 BRUTE FORCE: ${bruteForceIps.results.length} IPs are attempting multiple login failures.`);
+            report.checks.brute_force_ips = bruteForceIps.results;
+
+            // 🛡️ ACTION: Add to Guardian Block List (Auto-Shield)
+            for (const row of bruteForceIps.results) {
+                if (env.GUARDIAN_KV) {
+                    await env.GUARDIAN_KV.put(`block:${row.ip}`, "true", { expirationTtl: 3600 });
+                }
+            }
+        }
+
+        // 5. SEND ALERT IF ANOMALIES FOUND
+        if (report.anomalies.length > 0) {
+            await sendAlert(env, report);
+        }
+
+        return report;
+    } catch (err) {
+        console.error("Sentinel Error:", err);
+        return { error: err.message };
+    }
+}
+
+async function sendAlert(env, report) {
+    const webhookUrl = env.SENTINEL_WEBHOOK_URL;
+    if (!webhookUrl) return;
+
+    const message = {
+        text: `🚨 *Bondly Sentinel Alert*\n\n` +
+            report.anomalies.join("\n") +
+            `\n\n_Time: ${report.timestamp}_`
+    };
+
+    await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(message)
+    });
+}
+
+`

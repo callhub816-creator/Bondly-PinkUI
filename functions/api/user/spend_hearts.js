@@ -70,12 +70,12 @@ export async function onRequestPost({ request, env }) {
                 .bind(newBalance, amount, nowIso, userId),
 
             // Audit Log
-            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, -amount, 'spend', reason || "manual_spend", ip, nowIso),
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)")
+                .bind(crypto.randomUUID(), userId, -amount, newBalance, 'spend', reason || "manual_spend", ip, nowIso),
 
             // Event Log
-            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, 'spend_hearts', JSON.stringify({ amount, reason }), nowIso)
+            env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, 'spend_hearts', ip, JSON.stringify({ amount, reason }), nowIso)
         ]);
 
         return new Response(JSON.stringify({ success: true, hearts: newBalance, profile: { hearts: newBalance, subscription: 'FREE' } }), {

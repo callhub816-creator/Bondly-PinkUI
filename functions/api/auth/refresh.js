@@ -18,6 +18,8 @@ export async function onRequestPost({ request, env }) {
         // 2. 🔄 Rotate Tokens (Revoke Old, Create New)
         const userId = session.user_id;
         const user = await env.DB.prepare("SELECT id, username, display_name FROM users WHERE id = ?").bind(userId).first();
+        const ip = request.headers.get("cf-connecting-ip") || "unknown";
+        const userAgent = request.headers.get("user-agent") || "unknown";
 
         const newRefreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
         const newAccessExp = Date.now() + (15 * 60 * 1000);
@@ -34,8 +36,8 @@ export async function onRequestPost({ request, env }) {
 
         await env.DB.batch([
             env.DB.prepare("UPDATE user_sessions SET revoked = 1 WHERE refresh_token = ?").bind(oldRefreshToken),
-            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, newRefreshToken, newRefreshExp, new Date().toISOString())
+            env.DB.prepare("INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)")
+                .bind(crypto.randomUUID(), userId, newRefreshToken, ip, userAgent, newRefreshExp, new Date().toISOString())
         ]);
 
         const isSecure = new URL(request.url).protocol === 'https:';

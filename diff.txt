@@ -1,0 +1,219 @@
+﻿diff --git a/functions/_middleware.js b/functions/_middleware.js
+index cf10937..3e2bcf7 100644
+--- a/functions/_middleware.js
++++ b/functions/_middleware.js
+@@ -32,3 +32,3 @@ export async function onRequest({ request, next, env }) {
+                 // ≡ƒô¥ Log the block event in D1 for audit (Fixed table name and columns)
+-                await env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
++                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                     .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", JSON.stringify({ ip, hits }), new Date().toISOString()).run();
+diff --git a/functions/api/auth/bonus.js b/functions/api/auth/bonus.js
+index 460595f..a757b22 100644
+--- a/functions/api/auth/bonus.js
++++ b/functions/api/auth/bonus.js
+@@ -38,3 +38,3 @@ export async function onRequestPost({ request, env }) {
+         // 2. ≡ƒòÆ STRICT 24H CHECK (Check last bonus in audit log)
+-        const lastBonus = await env.DB.prepare("SELECT created_at FROM wallet_audit_log WHERE user_id = ? AND type = 'bonus' ORDER BY created_at DESC LIMIT 1").bind(userId).first();
++        const lastBonus = await env.DB.prepare("SELECT created_at FROM wallet_transactions WHERE user_id = ? AND type = 'bonus' ORDER BY created_at DESC LIMIT 1").bind(userId).first();
+ 
+@@ -82,3 +82,3 @@ export async function onRequestPost({ request, env }) {
+         // Get current wallet
+-        const wallet = await env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first();
++        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
+         const newBalance = (wallet?.hearts || 0) + bonusAmount;
+@@ -88,3 +88,3 @@ export async function onRequestPost({ request, env }) {
+             // Update Wallet
+-            env.DB.prepare("UPDATE wallets SET hearts = ?, total_earned = total_earned + ?, updated_at = ? WHERE user_id = ?")
++            env.DB.prepare("UPDATE users SET hearts = ?, total_earned = total_earned + ?, updated_at = ? WHERE id = ?")
+                 .bind(newBalance, bonusAmount, nowIso, userId),
+@@ -96,3 +96,3 @@ export async function onRequestPost({ request, env }) {
+             // Audit Log
+-            env.DB.prepare("INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
++            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), userId, bonusAmount, 'bonus', 'lucky_box', ip, nowIso),
+@@ -100,3 +100,3 @@ export async function onRequestPost({ request, env }) {
+             // Event Log
+-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
++            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), userId, 'claim_bonus', JSON.stringify({ amount: bonusAmount, streak: currentStreak }), nowIso)
+diff --git a/functions/api/auth/firebase-login.js b/functions/api/auth/firebase-login.js
+index 7054cad..2bd8b88 100644
+--- a/functions/api/auth/firebase-login.js
++++ b/functions/api/auth/firebase-login.js
+@@ -60,3 +60,3 @@ export async function onRequestPost({ request, env }) {
+         const [wallet, subscription] = await Promise.all([
+-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(user.id).first(),
++            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
+             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
+diff --git a/functions/api/auth/login.js b/functions/api/auth/login.js
+index dc62301..0a038a0 100644
+--- a/functions/api/auth/login.js
++++ b/functions/api/auth/login.js
+@@ -11,3 +11,3 @@ export async function onRequestPost({ request, env }) {
+         // 1. Check for recent failed attempts for this username (Sentinel)
+-        const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM event_logs WHERE event_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
++        const recentFailures = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'login_fail' AND created_at > ? AND metadata LIKE ?")
+             .bind(new Date(Date.now() - 15 * 60000).toISOString(), `%${ip}%`).first();
+@@ -56,3 +56,3 @@ export async function onRequestPost({ request, env }) {
+             // ≡ƒô¥ LOG FAILURE for Sentinel
+-            await env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), user.id, 'login_fail', JSON.stringify({ ip }), new Date().toISOString()).run();
+@@ -87,3 +87,3 @@ export async function onRequestPost({ request, env }) {
+         const [wallet, subscription] = await Promise.all([
+-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(user.id).first(),
++            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(user.id).first(),
+             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user.id).first()
+@@ -100,3 +100,3 @@ export async function onRequestPost({ request, env }) {
+             // 3. Event Log
+-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
++            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), user.id, 'login', JSON.stringify({ ip }), nowIso)
+diff --git a/functions/api/auth/me.js b/functions/api/auth/me.js
+index a65305b..bca09b4 100644
+--- a/functions/api/auth/me.js
++++ b/functions/api/auth/me.js
+@@ -55,3 +55,3 @@ export async function onRequestGet({ request, env }) {
+             const [wallet, subscription] = await Promise.all([
+-                env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(payload.id).first(),
++                env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(payload.id).first(),
+                 env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(payload.id).first()
+diff --git a/functions/api/auth/signup.js b/functions/api/auth/signup.js
+index 7f8be26..2169023 100644
+--- a/functions/api/auth/signup.js
++++ b/functions/api/auth/signup.js
+@@ -80,5 +80,3 @@ export async function onRequestPost({ request, env }) {
+             // 2. Initialize Wallet (20 Hearts Bonus)
+-            env.DB.prepare(
+-                "INSERT INTO wallets (id, user_id, hearts, total_spent, total_earned, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+-            ).bind(crypto.randomUUID(), userId, 20, 0, 20, nowIso),
++            /* Removed wallets insert */ userId, 20, 0, 20, nowIso),
+ 
+@@ -96,3 +94,3 @@ export async function onRequestPost({ request, env }) {
+             env.DB.prepare(
+-                "INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
++                "INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+             ).bind(crypto.randomUUID(), userId, 20, 'bonus', 'signup_bonus', ip, nowIso),
+@@ -101,3 +99,3 @@ export async function onRequestPost({ request, env }) {
+             env.DB.prepare(
+-                "INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
++                "INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)"
+             ).bind(crypto.randomUUID(), userId, 'signup', JSON.stringify({ ip, username }), nowIso)
+diff --git a/functions/api/auth/sync.js b/functions/api/auth/sync.js
+index aa3d86f..8d2c16b 100644
+--- a/functions/api/auth/sync.js
++++ b/functions/api/auth/sync.js
+@@ -64,3 +64,3 @@ export async function onRequestPost({ request, env }) {
+             env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first(),
+-            env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first(),
++            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
+             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+diff --git a/functions/api/chat/send.js b/functions/api/chat/send.js
+index 25849aa..9c57506 100644
+--- a/functions/api/chat/send.js
++++ b/functions/api/chat/send.js
+@@ -100,5 +100,5 @@ export async function onRequestPost({ request, env }) {
+             env.DB.prepare(`
+-                UPDATE wallets 
++                UPDATE users 
+                 SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ?
+-                WHERE user_id = ? AND hearts >= ?
++                WHERE id = ? AND hearts >= ?
+             `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
+@@ -114,3 +114,3 @@ export async function onRequestPost({ request, env }) {
+         if (batchResult[1].meta.changes === 0) {
+-            return new Response(JSON.stringify({ error: "Insufficient hearts! Γ¥ñ∩╕Å", action: "open_shop" }), { status: 429 });
++            return new Response(JSON.stringify({ error: "Insufficient hearts! Γ¥ñ∩╕Å", visit_type: "open_shop" }), { status: 429 });
+         }
+diff --git a/functions/api/payment/verify.js b/functions/api/payment/verify.js
+index ccce594..f398032 100644
+--- a/functions/api/payment/verify.js
++++ b/functions/api/payment/verify.js
+@@ -65,3 +65,3 @@ export async function onRequestPost({ request, env }) {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_params', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Missing parameters" }), { status: 400 });
+@@ -76,3 +76,3 @@ export async function onRequestPost({ request, env }) {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_sig', JSON.stringify({ razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
+@@ -81,3 +81,3 @@ export async function onRequestPost({ request, env }) {
+         // 3. ≡ƒ¢æ IDEMPOTENCY CHECK (Prevent Replay Attack)
+-        const { results: existingOrder } = await env.DB.prepare("SELECT id FROM processed_orders WHERE order_id = ?").bind(razorpay_order_id).all();
++        const { results: existingOrder } = await env.DB.prepare("SELECT id FROM wallet_transactions WHERE reason = ? AND type = 'payment'").bind(razorpay_order_id).all();
+         if (existingOrder && existingOrder.length > 0) {
+@@ -123,3 +123,3 @@ export async function onRequestPost({ request, env }) {
+             // ≡ƒô¥ LOG FAILURE
+-            await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
++            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, 'payment_fail_amount', JSON.stringify({ amountPaid, razorpay_order_id }), new Date().toISOString()).run();
+             return new Response(JSON.stringify({ error: "Invalid amount paid" }), { status: 400 });
+@@ -133,5 +133,5 @@ export async function onRequestPost({ request, env }) {
+             env.DB.prepare(`
+-                UPDATE wallets 
++                UPDATE users 
+                 SET hearts = hearts + ?, total_earned = total_earned + ?, updated_at = ?
+-                WHERE user_id = ?
++                WHERE id = ?
+             `).bind(heartsToAdd, amountPaid / 100, nowIso, userId),
+@@ -167,3 +167,3 @@ export async function onRequestPost({ request, env }) {
+             try {
+-                await env.DB.prepare("INSERT INTO logs (id, user_id, action, details, created_at) VALUES (?, ?, ?, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
++                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)").bind(logId, userId, 'payment_error_catch', JSON.stringify({ error: err.message }), new Date().toISOString()).run();
+             } catch (e) { }
+diff --git a/functions/api/user/spend_hearts.js b/functions/api/user/spend_hearts.js
+index aa24405..2165cba 100644
+--- a/functions/api/user/spend_hearts.js
++++ b/functions/api/user/spend_hearts.js
+@@ -48,3 +48,3 @@ export async function onRequestPost({ request, env }) {
+         const minuteAgo = new Date(Date.now() - 60000).toISOString();
+-        const { count: recentSpends } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_audit_log WHERE user_id = ? AND created_at > ?")
++        const { count: recentSpends } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE user_id = ? AND created_at > ?")
+             .bind(userId, minuteAgo).first();
+@@ -56,3 +56,3 @@ export async function onRequestPost({ request, env }) {
+         // 3. ≡ƒÆ╛ ATOMIC DEBIT + AUDIT TRAIL
+-        const wallet = await env.DB.prepare("SELECT hearts FROM wallets WHERE user_id = ?").bind(userId).first();
++        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
+         if (!wallet) return new Response(JSON.stringify({ error: "Wallet not found" }), { status: 404 });
+@@ -68,3 +68,3 @@ export async function onRequestPost({ request, env }) {
+             // Update Wallet
+-            env.DB.prepare("UPDATE wallets SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE user_id = ?")
++            env.DB.prepare("UPDATE users SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE id = ?")
+                 .bind(newBalance, amount, nowIso, userId),
+@@ -72,3 +72,3 @@ export async function onRequestPost({ request, env }) {
+             // Audit Log
+-            env.DB.prepare("INSERT INTO wallet_audit_log (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
++            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), userId, -amount, 'spend', reason || "manual_spend", ip, nowIso),
+@@ -76,3 +76,3 @@ export async function onRequestPost({ request, env }) {
+             // Event Log
+-            env.DB.prepare("INSERT INTO event_logs (id, user_id, event_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
++            env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+                 .bind(crypto.randomUUID(), userId, 'spend_hearts', JSON.stringify({ amount, reason }), nowIso)
+diff --git a/functions/sentinel.js b/functions/sentinel.js
+index b9184c6..1ab7e35 100644
+--- a/functions/sentinel.js
++++ b/functions/sentinel.js
+@@ -26,3 +26,3 @@ async function runSentinel(env) {
+         // 1. Check 500 Errors Spike
+-        const { count: errorCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM logs WHERE action = 'error' AND created_at > ?")
++        const { count: errorCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'error' AND created_at > ?")
+             .bind(timeRange).first();
+@@ -32,3 +32,3 @@ async function runSentinel(env) {
+         // 2. Check Payment Signature Failures (Fraud attempt)
+-        const { count: paymentFails } = await env.DB.prepare("SELECT COUNT(*) as count FROM logs WHERE action = 'payment_fail_sig' AND created_at > ?")
++        const { count: paymentFails } = await env.DB.prepare("SELECT COUNT(*) as count FROM user_visits WHERE visit_type = 'payment_fail_sig' AND created_at > ?")
+             .bind(timeRange).first();
+@@ -38,3 +38,3 @@ async function runSentinel(env) {
+         // 3. Check Wallet Spikes (Abnormal spending)
+-        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_audit_log WHERE change_amount < -500 AND created_at > ?")
++        const { count: walletSpikes } = await env.DB.prepare("SELECT COUNT(*) as count FROM wallet_transactions WHERE change_amount < -500 AND created_at > ?")
+             .bind(timeRange).first();
+@@ -46,4 +46,4 @@ async function runSentinel(env) {
+             SELECT details->>'$.ip' as ip, COUNT(*) as count 
+-            FROM logs 
+-            WHERE action = 'login_fail' AND created_at > ? 
++            FROM user_visits 
++            WHERE visit_type = 'login_fail' AND created_at > ? 
+             GROUP BY ip HAVING count > 10
