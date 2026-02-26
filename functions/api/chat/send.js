@@ -60,6 +60,14 @@ export async function onRequestPost({ request, env }) {
     }
 
     try {
+        // 1.5 🌍 ORIGIN VALIDATION (Production Only)
+        if (env.ENVIRONMENT === "production") {
+            const origin = request.headers.get("Origin");
+            if (origin !== "https://bondly.online") {
+                return new Response(JSON.stringify({ error: "Forbidden origin" }), { status: 403 });
+            }
+        }
+
         // 2. 🛡️ INPUT VALIDATION (Strict)
         const bodyText = await request.text();
         if (!bodyText) return new Response(JSON.stringify({ error: "Empty body" }), { status: 400 });
@@ -93,6 +101,24 @@ export async function onRequestPost({ request, env }) {
                 await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
                     .bind(crypto.randomUUID(), userId, 'security_breach_voice', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedVoice: true }), new Date().toISOString()).run();
                 return new Response(JSON.stringify({ error: "Forbidden: Voice Notes require active subscription." }), { status: 403 });
+            }
+
+            // 🛑 DAILY MESSAGE LIMIT (Free Plan)
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { count: msgCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?")
+                .bind(userId, twentyFourHoursAgo).first();
+
+            if (msgCount >= 10) {
+                return new Response(JSON.stringify({ error: "Daily message limit reached" }), { status: 429 });
+            }
+
+            // 🌙 MIDNIGHT LOCK (Free Plan)
+            const nowUtc = new Date();
+            const istDate = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
+            const istHour = istDate.getUTCHours();
+
+            if (istHour >= 0 && istHour < 4) {
+                return new Response(JSON.stringify({ error: "Midnight pass required" }), { status: 403 });
             }
         }
 
