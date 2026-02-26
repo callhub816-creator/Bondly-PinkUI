@@ -53,7 +53,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
   }, [inputText]);
 
   // 🔥 PROGRESSION LOGIC
-  const connectionPoints = profile.connectionPoints[persona.id] || 0;
+  const connectionPoints = profile?.connectionPoints?.[persona.id] || 0;
 
   const getLevel = (points: number) => {
     if (points >= 1000) return { label: 'Soulmate', color: 'bg-gradient-to-r from-purple-500 to-pink-500', min: 1000, max: 2000 };

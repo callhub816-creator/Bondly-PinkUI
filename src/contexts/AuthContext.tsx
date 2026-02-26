@@ -93,8 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser({ id: userData.id, username: userData.username, displayName: userData.displayName });
 
           if (userData.profileData) {
-            storage.saveProfile(userData.profileData);
-            setProfile(userData.profileData);
+            setProfile(prev => {
+              const updated = { ...prev, ...userData.profileData };
+              storage.saveProfile(updated);
+              return updated;
+            });
           }
         } else {
           setUser(null);
@@ -125,8 +128,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(data.user);
       if (data.profileData) {
-        storage.saveProfile(data.profileData);
-        refreshProfile();
+        setProfile(prev => {
+          const updated = { ...prev, ...data.profileData };
+          storage.saveProfile(updated);
+          return updated;
+        });
       }
       return data;
     } catch (err: any) {
@@ -164,14 +170,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateConnection = useCallback((companionId: string | number, points: number) => {
     const currentProfile = storage.getProfile();
-    const currentPoints = currentProfile.connectionPoints[companionId] || 0;
+    const currentPoints = currentProfile?.connectionPoints?.[companionId] || 0;
     const newPoints = currentPoints + points;
 
     // Simplify logic for now, real thresholds in constants
     const updated = {
       ...currentProfile,
       connectionPoints: {
-        ...currentProfile.connectionPoints,
+        ...(currentProfile?.connectionPoints || {}),
         [companionId]: newPoints
       }
     };
@@ -352,8 +358,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) throw new Error(data.error);
 
       if (data.success) {
-        setProfile(data.profile);
-        storage.saveProfile(data.profile);
+        setProfile(prev => {
+          const updated = { ...prev, ...data.profile };
+          storage.saveProfile(updated);
+          return updated;
+        });
         return true;
       }
       return false;
@@ -413,8 +422,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.success && data.profile) {
-        setProfile(data.profile);
-        storage.saveProfile(data.profile);
+        setProfile(prev => {
+          const updated = { ...prev, ...data.profile };
+          storage.saveProfile(updated);
+          return updated;
+        });
 
         // Random message for Lucky Box feel
         const rewards = data.amount || 1;

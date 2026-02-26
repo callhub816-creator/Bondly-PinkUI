@@ -74,22 +74,25 @@ export async function onRequestPost({ request, env }) {
 
         // 🔒 ALLOWED FIELDS ONLY (Whitelist)
         const safeUpdate = {
-            ...existingProfile,
-            displayName: profileData.displayName || existingProfile.displayName,
-            avatarUrl: profileData.avatarUrl || existingProfile.avatarUrl,
-            bio: profileData.bio || existingProfile.bio,
-            nickname: profileData.nickname || existingProfile.nickname,
-            preferred_reply_language: profileData.preferred_reply_language || existingProfile.preferred_reply_language,
+            id: userId,
+            hearts: walletRow?.hearts ?? 0,
+            subscription: (subRow?.plan_name || 'free').toLowerCase(),
+            connectionPoints: profileData.connectionPoints || {},
+            messageCountToday: profileData.messageCountToday || 0,
+            lastActive: new Date().toISOString(),
+            voiceMinutesLeft: profileData.voiceMinutesLeft || 0,
+            unlockedModes: profileData.unlockedModes || [],
+            streakCount: profileData.streakCount || 0,
+            displayName: profileData.displayName || profileData.nickname,
+            nickname: profileData.nickname,
+            avatarUrl: profileData.avatarUrl,
             // Prune history to last 7 days during sync
-            earningsHistory: (profileData.earningsHistory || existingProfile.earningsHistory || [])
+            earningsHistory: (profileData.earningsHistory || [])
                 .filter(item => {
                     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
                     return new Date(item.timestamp).getTime() > cutoff;
                 })
-                .slice(0, 50),
-            // Keep critical fields from SERVER state (Normalized Tables)
-            hearts: walletRow?.hearts ?? existingProfile.hearts ?? 0,
-            subscription_tier: subRow?.plan_name || existingProfile.subscription_tier || 'FREE'
+                .slice(0, 50)
         };
 
         // Removed profile_data update per schema

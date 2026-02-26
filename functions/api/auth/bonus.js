@@ -101,10 +101,22 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), userId, 'claim_bonus', ip, JSON.stringify({ amount: bonusAmount, streak: currentStreak }), nowIso)
         ]);
 
+        const [walletFinal, subFinal] = await Promise.all([
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+        ]);
+
+        const fullProfile = {
+            hearts: walletFinal?.hearts || 0,
+            subscription: (subFinal?.plan_name || 'free').toLowerCase(),
+            streakCount: currentStreak,
+            lastDailyBonusClaim: nowIso
+        };
+
         return new Response(JSON.stringify({
             success: true,
             amount: bonusAmount,
-            profile: profile
+            profile: fullProfile
         }), { headers: { "Content-Type": "application/json" } });
 
     } catch (err) {

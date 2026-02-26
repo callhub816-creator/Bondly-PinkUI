@@ -171,13 +171,7 @@ export const storage = {
   // --- USER PROFILE & USAGE ---
 
   getProfile: (): UserProfile => {
-    try {
-      const raw = localStorage.getItem('bondly_user_profile');
-      if (raw) return JSON.parse(raw);
-    } catch (e) { }
-
-    // Default profile for new users
-    return {
+    const defaultProfile: UserProfile = {
       id: 'local_user',
       subscription: 'free',
       connectionPoints: {},
@@ -192,6 +186,22 @@ export const storage = {
       earningsHistory: [],
       avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anya'
     };
+
+    try {
+      const raw = localStorage.getItem('bondly_user_profile');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          ...defaultProfile,
+          ...parsed,
+          connectionPoints: parsed.connectionPoints || {},
+          unlockedModes: parsed.unlockedModes || [],
+          earningsHistory: parsed.earningsHistory || []
+        };
+      }
+    } catch (e) { }
+
+    return defaultProfile;
   },
 
   saveProfile: (profile: UserProfile) => {
@@ -237,6 +247,7 @@ export const storage = {
 
   addConnectionPoints: (companionId: string | number, points: number) => {
     const profile = storage.getProfile();
+    if (!profile.connectionPoints) profile.connectionPoints = {};
     const currentPoints = profile.connectionPoints[companionId] || 0;
     profile.connectionPoints[companionId] = currentPoints + points;
     storage.saveProfile(profile);

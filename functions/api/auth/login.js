@@ -77,8 +77,9 @@ export async function onRequestPost({ request, env }) {
             success: true,
             user: { id: user.id, username: user.username, displayName: user.display_name },
             profileData: {
+                id: user.id,
                 hearts: wallet?.hearts || 0,
-                subscription: subscription?.plan_name || 'FREE'
+                subscription: (subscription?.plan_name || 'free').toLowerCase()
             }
         }), {
             headers: [

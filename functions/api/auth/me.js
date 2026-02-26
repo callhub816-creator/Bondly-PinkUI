@@ -49,8 +49,7 @@ export async function onRequestGet({ request, env }) {
 
         if (!isValid) return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401 });
 
-        // Fetch latest profile from DB
-        let profileData = { hearts: 0, subscription: 'FREE' };
+        let profileData = { id: payload.id, hearts: 0, subscription: 'free' };
         if (env.DB) {
             const [wallet, subscription] = await Promise.all([
                 env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(payload.id).first(),
@@ -58,8 +57,9 @@ export async function onRequestGet({ request, env }) {
             ]);
 
             profileData = {
+                id: payload.id,
                 hearts: wallet?.hearts || 0,
-                subscription: subscription?.plan_name || 'FREE'
+                subscription: (subscription?.plan_name || 'free').toLowerCase()
             };
         }
 

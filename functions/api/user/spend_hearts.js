@@ -78,7 +78,17 @@ export async function onRequestPost({ request, env }) {
                 .bind(crypto.randomUUID(), userId, 'spend_hearts', ip, JSON.stringify({ amount, reason }), nowIso)
         ]);
 
-        return new Response(JSON.stringify({ success: true, hearts: newBalance, profile: { hearts: newBalance, subscription: 'FREE' } }), {
+        const [walletFinal, subFinal] = await Promise.all([
+            env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
+        ]);
+
+        const fullProfile = {
+            hearts: walletFinal?.hearts || 0,
+            subscription: (subFinal?.plan_name || 'free').toLowerCase()
+        };
+
+        return new Response(JSON.stringify({ success: true, hearts: newBalance, profile: fullProfile }), {
             headers: { "Content-Type": "application/json" }
         });
 

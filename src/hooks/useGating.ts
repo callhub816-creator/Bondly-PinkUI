@@ -6,7 +6,7 @@ export const useGating = () => {
     const { profile } = useAuth();
 
     const getConnectionTier = (companionId: string | number): ConnectionLevel => {
-        const points = profile.connectionPoints[companionId] || 0;
+        const points = profile?.connectionPoints?.[companionId] || 0;
         const thresholds = {
             friend: 100,
             close: 500,
