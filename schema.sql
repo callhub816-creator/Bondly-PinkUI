@@ -3,86 +3,91 @@
 -- 1. Users Table
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
+    provider TEXT,
+    provider_id TEXT,
     username TEXT UNIQUE NOT NULL,
     display_name TEXT,
-    password_hash TEXT NOT NULL,
-    password_salt TEXT NOT NULL,
-    status TEXT DEFAULT 'active',
-    profile_data TEXT, -- JSON: { bio, avatarUrl, last_chat_date, long_term_memory, bond_level }
-    last_login_at TEXT,
+    email TEXT,
+    role TEXT DEFAULT 'user',
+    hearts INTEGER DEFAULT 0,
+    total_spent INTEGER DEFAULT 0,
+    total_earned INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
--- 2. Wallets Table (Currency Management)
-CREATE TABLE IF NOT EXISTS wallets (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id),
-    hearts INTEGER DEFAULT 0,
-    total_spent INTEGER DEFAULT 0,
-    total_earned INTEGER DEFAULT 0,
-    updated_at TEXT NOT NULL
-);
-
--- 3. Subscriptions Table
-CREATE TABLE IF NOT EXISTS subscriptions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id),
-    plan_name TEXT NOT NULL, -- 'FREE', 'STARTER', 'CORE', 'PLUS'
-    status TEXT DEFAULT 'active',
-    started_at TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-
--- 4. User Sessions (Refresh Tokens)
+-- 2. User Sessions (Refresh Tokens)
 CREATE TABLE IF NOT EXISTS user_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     refresh_token TEXT NOT NULL UNIQUE,
+    ip_address TEXT,
+    user_agent TEXT,
     expires_at INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     revoked INTEGER DEFAULT 0
 );
 
--- 5. Wallet Audit Log (Revenue Security)
-CREATE TABLE IF NOT EXISTS wallet_audit_log (
+-- 3. Wallet Transactions (Revenue Security & Balances)
+CREATE TABLE IF NOT EXISTS wallet_transactions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     amount INTEGER NOT NULL,
+    balance_after INTEGER,
     type TEXT NOT NULL, -- 'spend', 'purchase', 'bonus'
     reason TEXT,
+    reference_id TEXT,
     ip_address TEXT,
     created_at TEXT NOT NULL
 );
 
--- 6. Messages Table
+-- 4. Subscriptions Table
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    plan_name TEXT NOT NULL, -- 'FREE', 'STARTER', 'CORE', 'PLUS'
+    plan_price INTEGER DEFAULT 0,
+    payment_id TEXT,
+    status TEXT DEFAULT 'active',
+    started_at TEXT NOT NULL,
+    expires_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- 5. Messages Table
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     chat_id TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
-    sender_handle TEXT,
-    body TEXT,
+    user_id TEXT REFERENCES users(id),
+    ai_profile_id TEXT,
     role TEXT DEFAULT 'user', -- 'user' or 'assistant'
+    body TEXT,
+    tokens_used INTEGER DEFAULT 0,
     metadata TEXT, -- JSON: { audioUrl, gifUrl }
-    is_deleted INTEGER DEFAULT 0,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at);
 
--- 7. Event Logs
-CREATE TABLE IF NOT EXISTS event_logs (
+-- 6. User Visits (Event Logs & Auditing)
+CREATE TABLE IF NOT EXISTS user_visits (
     id TEXT PRIMARY KEY,
     user_id TEXT REFERENCES users(id),
-    event_type TEXT NOT NULL,
+    session_id TEXT REFERENCES user_sessions(id),
+    visit_type TEXT NOT NULL,
+    ip_address TEXT,
     metadata TEXT, -- JSON
     created_at TEXT NOT NULL
 );
 
--- 8. Processed Orders (Idempotency)
-CREATE TABLE IF NOT EXISTS processed_orders (
+-- 7. AI Profiles (Persona Management)
+CREATE TABLE IF NOT EXISTS ai_profiles (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id),
-    order_id TEXT NOT NULL UNIQUE,
-    amount INTEGER, -- in paise
-    created_at TEXT NOT NULL
+    name TEXT NOT NULL,
+    model_name TEXT,
+    system_prompt TEXT,
+    avatar_url TEXT,
+    visibility TEXT DEFAULT 'public',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
