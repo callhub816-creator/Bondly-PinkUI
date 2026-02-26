@@ -372,8 +372,8 @@ export async function onRequestPost({ request, env }) {
         const aiNowIso = new Date().toISOString();
         const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
 
-        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
-            .bind(aiMsgId, chatId, userId, activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
+        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)")
+            .bind(aiMsgId, chatId, userId, 'assistant', aiReply, metadata, aiNowIso).run();
 
         return new Response(JSON.stringify({
             success: true,
