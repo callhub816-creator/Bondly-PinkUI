@@ -5,7 +5,7 @@ import { UserProfile, SubscriptionPlan, ConnectionLevel } from '../../types';
 import { GATING_CONFIG } from '../../constants';
 import { useNotification } from '../../components/NotificationProvider';
 import { auth } from '../utils/firebase';
-import { signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 type ProviderName = 'facebook' | 'google';
 
@@ -15,6 +15,8 @@ type AuthContextType = {
   loading: boolean;
   syncProfile: (profile: UserProfile) => Promise<void>;
   signInWithProvider: (provider: ProviderName) => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateConnection: (companionId: string | number, points: number) => void;
   incrementUsage: () => number;
@@ -165,6 +167,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error(e);
         showNotification('Google Sign-In failed', 'error');
       }
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const token = await userCredential.user.getIdToken();
+      await handleFirebaseSync(token, userCredential.user.displayName || email.split('@')[0]);
+      window.location.href = '/';
+    } catch (e: any) {
+      console.error(e);
+      showNotification(e.message || 'Login failed', 'error');
+      throw e;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, pass: string) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const token = await userCredential.user.getIdToken();
+      await handleFirebaseSync(token, email.split('@')[0]);
+      window.location.href = '/';
+    } catch (e: any) {
+      console.error(e);
+      showNotification(e.message || 'Signup failed', 'error');
+      throw e;
     }
   };
 
@@ -444,7 +472,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading, syncProfile, signInWithProvider, signOut,
+      user, profile, loading, syncProfile, signInWithProvider, signInWithEmail, signUpWithEmail, signOut,
       updateConnection, incrementUsage, refreshProfile, upgradeSubscription, purchaseHearts,
       spendHearts, sendGift, unlockConnectionTier, leasePersonality, extendMessages, buyStarterPass,
       updateProfile, claimDailyBonus
