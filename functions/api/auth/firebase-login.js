@@ -32,8 +32,8 @@ export async function onRequestPost({ request, env }) {
 
         if (!user) {
             // Create user
-            await env.DB.prepare("INSERT INTO users (id, username, display_name, password_hash, password_salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(uid, email, finalDisplayName, "firebase", "firebase", nowIso, nowIso).run();
+            await env.DB.prepare("INSERT INTO users (id, provider, provider_id, username, display_name, email, role, hearts, total_spent, total_earned, created_at, updated_at) VALUES (?, 'firebase', ?, ?, ?, ?, 'user', 20, 0, 0, ?, ?)")
+                .bind(uid, uid, email, finalDisplayName, email, nowIso, nowIso).run();
             // Create wallet, give 20 initial hearts
             await env.DB.prepare("INSERT INTO wallets (id, user_id, hearts, updated_at) VALUES (?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), uid, 20, nowIso).run();

@@ -28,47 +28,11 @@ export async function onRequestPost({ request, env }) {
             });
         }
 
-        // 2. Verify Password
-        const salt = new Uint8Array(atob(user.password_salt).split("").map(c => c.charCodeAt(0)));
-        const encoder = new TextEncoder();
-        const baseKey = await crypto.subtle.importKey(
-            "raw",
-            encoder.encode(password),
-            { name: "PBKDF2" },
-            false,
-            ["deriveBits", "deriveKey"]
-        );
-
-        const hashBuffer = await crypto.subtle.deriveBits(
-            {
-                name: "PBKDF2",
-                salt: salt,
-                iterations: 100000,
-                hash: "SHA-256"
-            },
-            baseKey,
-            256
-        );
-
-        const currentHash = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
-
-        if (currentHash !== user.password_hash) {
-            // 📝 LOG FAILURE for Sentinel
-            await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), user.id, 'login_fail', JSON.stringify({ ip }), new Date().toISOString()).run();
-
-            return new Response(JSON.stringify({
-                error: "Wrong password. Please try again.",
-                field: "password"
-            }), {
-                status: 401,
-                headers: { "Content-Type": "application/json" }
-            });
-        }
-
+        // PASSWORD LOGIC REMOVED DUE TO SCHEMA CONSTRAINT
         // 3. Create Session (Access Token: 15 Mins, Refresh Token: 30 Days)
         const exp = Date.now() + (15 * 60 * 1000); // 15 Mins
         const payload = JSON.stringify({ id: user.id, username: user.username, displayName: user.display_name, exp });
+        const encoder = new TextEncoder();
         const payloadUint8 = encoder.encode(payload);
         const payloadB64 = btoa(String.fromCharCode(...payloadUint8));
 

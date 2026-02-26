@@ -70,7 +70,7 @@ export async function onRequestPost({ request, env }) {
         const userMsgBody = message.trim();
 
         // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory)
-        const userRow = await env.DB.prepare("SELECT username, profile_data FROM users WHERE id = ?").bind(userId).first();
+        const userRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first();
         if (!userRow) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
 
         const userHandle = userRow.username || "Guest";
@@ -104,8 +104,8 @@ export async function onRequestPost({ request, env }) {
             `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
 
             // c. Save Message
-            env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), chatId, userId, userHandle, userMsgBody, nowIso, 'user')
+            env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
+                .bind(crypto.randomUUID(), chatId, userId, 'user', userMsgBody, nowIso)
         ]);
 
         if (batchResult[0].meta.changes === 0) {
@@ -378,8 +378,8 @@ export async function onRequestPost({ request, env }) {
         const aiNowIso = new Date().toISOString();
         const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
 
-        await env.DB.prepare("INSERT INTO messages (id, chat_id, sender_id, sender_handle, body, created_at, role, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, aiReply, aiNowIso, 'assistant', metadata).run();
+        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
+            .bind(aiMsgId, chatId, 'ai_assistant', activePersona.name, 'assistant', aiReply, metadata, aiNowIso).run();
 
         return new Response(JSON.stringify({
             success: true,

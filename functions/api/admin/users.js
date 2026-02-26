@@ -16,7 +16,6 @@ export async function onRequestGet({ request, env }) {
                 id, 
                 username, 
                 display_name, 
-                profile_data, 
                 created_at 
             FROM users 
             ORDER BY created_at DESC
@@ -25,8 +24,7 @@ export async function onRequestGet({ request, env }) {
         return new Response(JSON.stringify({
             success: true,
             users: users.results.map(u => ({
-                ...u,
-                profile: JSON.parse(u.profile_data || "{}")
+                ...u
             }))
         }), { headers: { "Content-Type": "application/json" } });
 

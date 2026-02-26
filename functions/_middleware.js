@@ -30,8 +30,8 @@ export async function onRequest({ request, next, env }) {
                 await env.GUARDIAN_KV?.put(`block:${ip}`, "true", { expirationTtl: 3600 }); // Block for 1 hour
 
                 // 📝 Log the block event in D1 for audit (Fixed table name and columns)
-                await env.DB.prepare("INSERT INTO user_visits (id, user_id, visit_type, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
-                    .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", JSON.stringify({ ip, hits }), new Date().toISOString()).run();
+                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", ip, JSON.stringify({ hits }), new Date().toISOString()).run();
 
                 return new Response(JSON.stringify({ error: "Guardian: Attack detected. IP blocked for 1 hour." }), { status: 403 });
             }
