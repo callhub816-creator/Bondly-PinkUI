@@ -137,8 +137,8 @@ export async function onRequestPost({ request, env }) {
             `).bind(heartsToAdd, amountPaid / 100, nowIso, userId),
 
             // b. Mark Order Processed
-            env.DB.prepare("INSERT INTO processed_orders (id, user_id, order_id, amount, created_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, razorpay_order_id, amountPaid, nowIso)
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, ?, 0, 'payment', 'razorpay_order', ?, NULL, ?)")
+                .bind(crypto.randomUUID(), userId, amountPaid / 100, razorpay_order_id, nowIso)
         ];
 
         // c. Update Subscription if it was a plan purchase

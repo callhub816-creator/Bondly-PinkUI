@@ -60,8 +60,8 @@ export async function onRequestPost({ request, env }) {
         const nowIso = new Date().toISOString();
 
         // Fetch current user data for profile sync
-        const userRow = await env.DB.prepare("SELECT profile_data FROM users WHERE id = ?").bind(userId).first();
-        let profile = JSON.parse(userRow.profile_data || "{}");
+        const userRow = await env.DB.prepare("SELECT 1 as dummy FROM users WHERE id = ?").bind(userId).first();
+        let profile = JSON.parse("{}");
 
         // Calculate Streak
         let currentStreak = profile.streakCount || 0;
@@ -90,8 +90,7 @@ export async function onRequestPost({ request, env }) {
                 .bind(newBalance, bonusAmount, nowIso, userId),
 
             // Update User Profile Data (Streak & Last Claim)
-            env.DB.prepare("UPDATE users SET profile_data = ?, updated_at = ? WHERE id = ?")
-                .bind(JSON.stringify(profile), nowIso, userId),
+            // Removed profile_data update from bundle
 
             // Audit Log
             env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")

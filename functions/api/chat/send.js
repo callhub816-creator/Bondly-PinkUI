@@ -74,7 +74,7 @@ export async function onRequestPost({ request, env }) {
         if (!userRow) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
 
         const userHandle = userRow.username || "Guest";
-        const userProfile = JSON.parse(userRow.profile_data || "{}");
+        const userProfile = JSON.parse("{}");
         const userName = userProfile.nickname || userProfile.displayName || "Mere Jaan";
         const longTermMemory = userProfile.long_term_memory || "Everything starts from here.";
         const userPreferences = userProfile.user_preferences || "Learning your likes and dislikes...";
@@ -309,13 +309,7 @@ export async function onRequestPost({ request, env }) {
                     }
 
                     if (didLearn) {
-                        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
-                            .bind(JSON.stringify({
-                                ...userProfile,
-                                long_term_memory: newMemory,
-                                user_preferences: newPrefs,
-                                bond_level: Math.min(100, bondLevel + 1)
-                            }), userId).run();
+                        // Profile update skipped per schema
                     }
                     aiReply = finalReply;
                 } else {

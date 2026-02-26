@@ -70,7 +70,7 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
         }
 
-        const existingProfile = JSON.parse(userRow.profile_data || "{}");
+        const existingProfile = JSON.parse("{}");
 
         // 🔒 ALLOWED FIELDS ONLY (Whitelist)
         const safeUpdate = {
@@ -92,10 +92,7 @@ export async function onRequestPost({ request, env }) {
             subscription_tier: subRow?.plan_name || existingProfile.subscription_tier || 'FREE'
         };
 
-        // Update DB with SAFE data
-        await env.DB.prepare("UPDATE users SET profile_data = ? WHERE id = ?")
-            .bind(JSON.stringify(safeUpdate), userId)
-            .run();
+        // Removed profile_data update per schema
 
         return new Response(JSON.stringify({ success: true, profile: safeUpdate }), { headers: { "Content-Type": "application/json" } });
 
