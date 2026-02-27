@@ -85,14 +85,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Fetch user session on load
+  // Fetch user session on load with SessionStorage caching to prevent /api/auth/me spam
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const cachedUser = sessionStorage.getItem('bondly_auth_cache');
+        if (cachedUser) {
+          const parsed = JSON.parse(cachedUser);
+          if (parsed.timestamp > Date.now() - 5 * 60 * 1000) {
+            // Cache valid for 5 minutes
+            setUser(parsed.user);
+            setLoading(false);
+            return;
+          }
+        }
+
         const res = await authFetch('/api/auth/me');
         if (res.ok) {
           const userData = await res.json();
-          setUser({ id: userData.id, username: userData.username, displayName: userData.displayName });
+          const userObj = { id: userData.id, username: userData.username, displayName: userData.displayName };
+          setUser(userObj);
 
           if (userData.profileData) {
             setProfile(prev => {
@@ -101,11 +113,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return updated;
             });
           }
+
+          sessionStorage.setItem('bondly_auth_cache', JSON.stringify({
+            user: userObj,
+            timestamp: Date.now()
+          }));
         } else {
           setUser(null);
+          sessionStorage.removeItem('bondly_auth_cache');
         }
       } catch (err) {
         setUser(null);
+        sessionStorage.removeItem('bondly_auth_cache');
       } finally {
         setLoading(false);
       }
@@ -151,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) { }
     setUser(null);
+    sessionStorage.removeItem('bondly_auth_cache');
     storage.clearAllHistories();
     window.location.href = '/login';
   };
