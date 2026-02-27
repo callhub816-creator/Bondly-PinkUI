@@ -470,7 +470,7 @@ export async function onRequestPost({ request, env }) {
         // Save AI Msg
         const aiMsgId = crypto.randomUUID();
         const aiNowIso = new Date().toISOString();
-        const metadata = audioBase64 ? JSON.stringify({ audioUrl: audioBase64 }) : null;
+        const metadata = null;
 
         await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)")
             .bind(aiMsgId, chatId, userId, 'assistant', aiReply, metadata, aiNowIso).run();
@@ -481,7 +481,7 @@ export async function onRequestPost({ request, env }) {
                 id: aiMsgId,
                 body: aiReply,
                 created_at: aiNowIso,
-                audioUrl: audioBase64,
+                audioUrl: null,
                 error: llmError
             }
         }), { headers: { "Content-Type": "application/json" } });
