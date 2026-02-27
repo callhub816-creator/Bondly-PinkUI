@@ -77,6 +77,41 @@ export async function onRequestPost({ request, env }) {
         if (typeof message !== 'string') return new Response(JSON.stringify({ error: "Invalid message type" }), { status: 400 });
         const userMsgBody = message.trim();
 
+        // 🚀 2.5 CLOUDFLARE KV RATE LIMITING (Token Bucket)
+        if (env.RATE_LIMIT_KV) {
+            try {
+                const kvKey = `rate_limit:${userId}`;
+                const now = Date.now();
+                let limitData = { lastRequestTimestamp: 0, minuteWindowStart: now, minuteCount: 0 };
+
+                const kvRes = await env.RATE_LIMIT_KV.get(kvKey);
+                if (kvRes) limitData = JSON.parse(kvRes);
+
+                // Check 2-second burst limit
+                if (now - limitData.lastRequestTimestamp < 2000) {
+                    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please slow down." }), { status: 429, headers: { "Content-Type": "application/json" } });
+                }
+
+                // Check 60-second rolling window (20 messages max)
+                if (now - limitData.minuteWindowStart > 60000) {
+                    limitData.minuteWindowStart = now;
+                    limitData.minuteCount = 0;
+                }
+
+                if (limitData.minuteCount >= 20) {
+                    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please slow down." }), { status: 429, headers: { "Content-Type": "application/json" } });
+                }
+
+                // Update and save
+                limitData.lastRequestTimestamp = now;
+                limitData.minuteCount += 1;
+                await env.RATE_LIMIT_KV.put(kvKey, JSON.stringify(limitData), { expirationTtl: 120 }); // expire in 2 mins
+            } catch (kvErr) {
+                // Fail-safe open: If KV is down, allow request to proceed
+                console.error("KV Rate Limiting Error:", kvErr);
+            }
+        }
+
         // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory + Subscription)
         const [userRow, subRow] = await Promise.all([
             env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first(),
@@ -128,38 +163,26 @@ export async function onRequestPost({ request, env }) {
         const userPreferences = userProfile.user_preferences || "Learning your likes and dislikes...";
         const bondLevel = userProfile.bond_level || 1;
 
-        // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET + Rate Limit Check on USER)
+        // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET)
         const heartsToDeduct = isVoiceNote ? 3 : 1;
         const nowMs = Date.now();
-        const rateLimitThreshold = nowMs - 1500; // 1.5s spam protection
         const nowIso = new Date(nowMs).toISOString();
 
-        // 🛡️ BATCH TRANSACTION: Check Rate Limit + Deduct Hearts + Save Message
+        // 🛡️ BATCH TRANSACTION: Deduct Hearts + Save Message
         const batchResult = await env.DB.batch([
-            // a. Rate limit check (Update timestamp if allowed)
-            env.DB.prepare(`
-                UPDATE users 
-                SET updated_at = ? 
-                WHERE id = ? 
-                AND (updated_at IS NULL OR CAST((julianday(?) - julianday(updated_at)) * 86400000 AS INTEGER) > 1500)
-            `).bind(nowIso, userId, nowIso),
-
-            // b. Deduct Hearts from Wallet
+            // a. Deduct Hearts from Wallet
             env.DB.prepare(`
                 UPDATE users 
                 SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ?
                 WHERE id = ? AND hearts >= ?
             `).bind(heartsToDeduct, heartsToDeduct, nowIso, userId, heartsToDeduct),
 
-            // c. Save Message
+            // b. Save Message
             env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
                 .bind(crypto.randomUUID(), chatId, userId, 'user', userMsgBody, nowIso)
         ]);
 
         if (batchResult[0].meta.changes === 0) {
-            return new Response(JSON.stringify({ error: "Thoda dheere! Please wait a moment." }), { status: 429 });
-        }
-        if (batchResult[1].meta.changes === 0) {
             return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️", visit_type: "open_shop" }), { status: 429 });
         }
 
