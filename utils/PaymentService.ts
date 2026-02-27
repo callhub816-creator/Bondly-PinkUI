@@ -52,7 +52,7 @@ export const initiatePayment = async (options: {
         const data = await orderRes.json();
         order = data;
     } catch (err: any) {
-        console.error("Payment Error:", err);
+
         alert(`Payment Initialization Failed: ${err.message}`);
         return;
     }

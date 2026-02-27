@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
     ip_address TEXT,
     created_at TEXT NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_tx_ref ON wallet_transactions(reference_id) WHERE type = 'payment';
 
 -- 4. Subscriptions Table
 CREATE TABLE IF NOT EXISTS subscriptions (

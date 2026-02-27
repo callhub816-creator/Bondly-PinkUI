@@ -86,6 +86,9 @@ export async function onRequestPost({ request, env }) {
 
         // 4. 💰 FETCH ORDER DETAILS
         const keyId = env.RAZORPAY_KEY_ID;
+        if (env.ENVIRONMENT === 'production' && keyId && keyId.startsWith('rzp_test_')) {
+            return new Response(JSON.stringify({ error: "Test keys not permitted in production" }), { status: 500 });
+        }
         const auth = btoa(`${keyId}:${secret}`);
         const orderRes = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
             headers: { "Authorization": `Basic ${auth}` }
@@ -94,6 +97,10 @@ export async function onRequestPost({ request, env }) {
         if (!orderRes.ok) throw new Error("Failed to fetch order from Razorpay");
         const orderData = await orderRes.json();
         const amountPaid = orderData.amount_paid || orderData.amount; // paise
+
+        if (orderData.status !== 'paid') {
+            return new Response(JSON.stringify({ error: "Order is not paid" }), { status: 400 });
+        }
 
         // 5. 🧮 CALCULATE ASSETS (Strict Price Mapping from constants.ts)
         let heartsToAdd = 0;

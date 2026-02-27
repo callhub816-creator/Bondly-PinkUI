@@ -255,7 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         try {
           errorData = JSON.parse(errorText);
-          console.error("Payment Server Error Data:", errorData);
+
           // Extract specific Razorpay error message if available
           const specificError = errorData.detail?.error?.description || errorData.detail?.description || errorData.error;
           errorMessage = specificError || errorMessage;
@@ -317,7 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               showNotification(verifyRes.error || 'Payment verification failed.', 'error');
             }
           } catch (error) {
-            console.error('Verify Error:', error);
+
             showNotification('Payment verification error', 'error');
           }
         },
@@ -338,7 +338,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       paymentObject.open();
 
     } catch (error: any) {
-      console.error('Payment Error:', error);
+
       showNotification(error.message || 'Payment initiation failed', 'error');
     }
   };
