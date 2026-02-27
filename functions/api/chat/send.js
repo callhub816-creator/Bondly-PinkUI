@@ -207,7 +207,7 @@ export async function onRequestPost({ request, env }) {
             const istHour = istDate.getUTCHours();
 
             if (istHour >= 0 && istHour < 4) {
-                return new Response(JSON.stringify({ error: "Midnight pass required" }), { status: 403 });
+                return new Response(JSON.stringify({ error: "24-Hour Access Pass required" }), { status: 403 });
             }
         } else {
             // Layer 4: Daily Soft Usage Cap for PAID users

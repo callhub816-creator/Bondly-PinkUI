@@ -17,23 +17,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
     const addons = GATING_CONFIG.addons;
     const isNewUser = (profile.earningsHistory || []).filter(e => e.type === 'purchase').length === 0;
 
-    // 🔥 TRUE DYNAMIC PRICING: The Sale Price itself changes, not just the label!
-    // This shuffles once per modal open to create "Price Luck"
-    const [dynamicDiscounts] = React.useState(() => {
-        return {
-            starter: 0.5 + Math.random() * 0.3, // 50% to 80% off
-            core: 0.6 + Math.random() * 0.2,    // 60% to 80% off
-            plus: 0.7 + Math.random() * 0.15,   // 70% to 85% off
-            hearts: 0.5 + Math.random() * 0.35,  // 50% to 85% off
-            addons: 0.4 + Math.random() * 0.4    // 40% to 80% off
-        };
-    });
-
-    const getDynamicSalePrice = (original: number, discount: number) => {
-        const raw = original * (1 - discount);
-        // Round to nearest 9 to make it look like a "deal" (e.g., 189, 499)
-        return Math.floor(raw / 10) * 10 + 9;
-    };
+    // Prices are now strict as per RBI compliance. No heavy discount spam.
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 shadow-2xl animate-in fade-in duration-300 backdrop-blur-md bg-black/40">
@@ -46,8 +30,8 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <Sparkles size={20} className="text-pink-500" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold font-serif-display">Soulmate Shop</h2>
-                            <p className="text-[10px] opacity-60 uppercase tracking-widest font-bold">Deepen your connection</p>
+                            <h2 className="text-xl font-bold font-serif-display">Bondly Upgrade Center</h2>
+                            <p className="text-[10px] opacity-60 uppercase tracking-widest font-bold">Improve your communication experience</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
@@ -63,7 +47,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <h4 className="font-black text-sm uppercase tracking-widest mb-1 flex items-center gap-2">
                                 <Sparkles size={16} /> Welcome Bonus
                             </h4>
-                            <p className="text-[11px] font-medium opacity-90 leading-snug">Get 50 Hearts + Midnight Pass for just ₹49. Limited time first-recharge offer!</p>
+                            <p className="text-[11px] font-medium opacity-90 leading-snug">Get 50 Message Credits + 24-Hour Access for just ₹49. Limited time first-recharge offer!</p>
                         </div>
                     )}
 
@@ -71,7 +55,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                     <section>
                         <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
                             <Zap size={12} className="text-yellow-500 fill-yellow-500" />
-                            Impulse Boost
+                            24-Hour Pro Access
                         </h3>
                         <div
                             onClick={() => buyStarterPass()}
@@ -80,14 +64,13 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <div className="flex justify-between items-start mb-2">
                                 <div>
                                     <h4 className="font-bold text-lg">{plans.starter.name}</h4>
-                                    <p className="text-xs opacity-70">Unlock addiction for 24 hours.</p>
+                                    <p className="text-xs opacity-70">Extended access for 24 hours.</p>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-[10px] line-through opacity-40 font-bold">₹{plans.starter.originalPrice}</div>
                                     <div className="px-3 py-1 bg-yellow-400 text-black text-[13px] font-black rounded-lg shadow-lg">
-                                        ₹{getDynamicSalePrice(plans.starter.originalPrice || 249, dynamicDiscounts.starter)}
+                                        ₹{plans.starter.price}
                                     </div>
-                                    <div className="text-[9px] text-yellow-600 font-black uppercase mt-0.5">-{Math.round(dynamicDiscounts.starter * 100)}% Off</div>
+                                    <div className="text-[9px] text-yellow-600 font-black uppercase mt-0.5">Introductory Price</div>
                                 </div>
                             </div>
                             <ul className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3">
@@ -107,7 +90,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <section>
                                 <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
                                     <Heart size={12} className="text-pink-500 fill-pink-500" />
-                                    Real Attachment
+                                    Message Capacity Upgrade
                                 </h3>
                                 <div
                                     onClick={() => upgradeSubscription('core')}
@@ -119,12 +102,11 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                     <div className="flex justify-between items-start mb-2 pt-1">
                                         <div>
                                             <h4 className="font-bold text-xl">{plans.core.name}</h4>
-                                            <p className="text-xs opacity-70">Long-term emotional bond (30 Days).</p>
+                                            <p className="text-xs opacity-70">Long-term connection bond (30 Days).</p>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-[11px] line-through opacity-40 font-bold">₹{plans.core.originalPrice}</div>
-                                            <div className="text-xl font-black text-pink-500">₹{getDynamicSalePrice(plans.core.originalPrice || 999, dynamicDiscounts.core)}</div>
-                                            <div className="text-[10px] text-pink-500 font-black uppercase">Save {Math.round(dynamicDiscounts.core * 100)}%</div>
+                                            <div className="text-xl font-black text-pink-500">₹{plans.core.price}</div>
+                                            <div className="text-[10px] text-pink-500 font-black uppercase">Standard Price</div>
                                         </div>
                                     </div>
                                     <ul className="space-y-2 mt-4">
@@ -144,7 +126,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                             <section>
                                 <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
                                     <Sparkles size={12} className="text-purple-500" />
-                                    Unlimited Access
+                                    Premium Access
                                 </h3>
                                 <div
                                     onClick={() => upgradeSubscription('plus')}
@@ -159,9 +141,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                             <p className="text-xs opacity-70">Unlock everything, forever.</p>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-[11px] line-through opacity-40 font-bold">₹{plans.plus.originalPrice}</div>
-                                            <div className="text-xl font-black text-purple-600">₹{getDynamicSalePrice(plans.plus.originalPrice || 2499, dynamicDiscounts.plus)}</div>
-                                            <div className="text-[10px] text-purple-600 font-black uppercase">Limited {Math.round(dynamicDiscounts.plus * 100)}% Off</div>
+                                            <div className="text-xl font-black text-purple-600">₹{plans.plus.price}</div>
                                         </div>
                                     </div>
                                     <ul className="grid grid-cols-1 gap-2 mt-4">
@@ -183,7 +163,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                     <section>
                         <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
                             <ShieldCheck size={12} className="text-blue-500" />
-                            Silent Killers (Add-ons)
+                            Advanced Tools
                         </h3>
                         <div className="grid grid-cols-1 gap-3">
                             {addons.map((addon, i) => (
@@ -203,8 +183,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-[10px] line-through opacity-40 font-bold">₹{addon.originalPrice}</div>
-                                        <span className="text-sm font-black opacity-80">₹{getDynamicSalePrice(addon.originalPrice || 199, dynamicDiscounts.addons)}</span>
+                                        <span className="text-sm font-black opacity-80">₹{addon.price}</span>
                                     </div>
                                 </button>
                             ))}
@@ -213,7 +192,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
 
                     {/* HEARTS PACKS */}
                     <section className="pb-4">
-                        <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3">Refill Hearts</h3>
+                        <h3 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3">Message Credits</h3>
                         <div className="grid grid-cols-3 gap-3">
                             {HEARTS_PACKS.map(pack => (
                                 <button
@@ -224,8 +203,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
                                 >
                                     <Heart size={14} className="text-pink-500 fill-current mb-0.5" />
                                     <span className="text-xs font-black">{pack.hearts}</span>
-                                    <span className="text-[9px] line-through opacity-40 font-bold">₹{pack.originalPrice}</span>
-                                    <span className="text-[11px] text-pink-600 font-black">₹{getDynamicSalePrice(pack.originalPrice || 499, dynamicDiscounts.hearts)}</span>
+                                    <span className="text-[11px] text-pink-600 font-black mt-1">₹{pack.price}</span>
                                 </button>
                             ))}
                         </div>

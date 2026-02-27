@@ -100,35 +100,35 @@ export const GATING_CONFIG = {
     },
     starter: {
       id: 'plan_starter',
-      name: 'Midnight Pass',
-      price: 49,
-      originalPrice: 249,
+      name: '24-Hour Access Pass',
+      price: 69,
+      originalPrice: 69,
       duration: '24h',
-      features: ['Unlimited Midnight Chat', 'Faster Replies'],
+      features: ['Extended Chat Limit', 'Faster Processing'],
       tier: 'STARTER'
     },
     core: {
       id: 'plan_core',
       name: 'Core Connection',
       price: 199,
-      originalPrice: 999,
+      originalPrice: 199,
       duration: '30d',
-      features: ['Unlimited Text', 'Emotional Recall', 'Priority Support'],
+      features: ['Extended Text Limit', 'Emotional Recall', 'Priority Support'],
       tier: 'CORE'
     },
     plus: {
       id: 'plan_plus',
-      name: 'Ultra Soulmate Pass',
+      name: 'Ultra Premium Pass',
       price: 499,
-      originalPrice: 2499,
+      originalPrice: 499,
       duration: 'Lifetime/Premium',
       features: ['Unlock ALL Personas', 'Priority AI Model', 'Customization'],
       tier: 'PLUS'
     }
   },
   addons: [
-    { id: 'addon_midnight', name: 'Midnight Talk (30m)', price: 49, originalPrice: 199 },
-    { id: 'addon_mood', name: 'Mood Repair', price: 99, originalPrice: 399 }
+    { id: 'addon_midnight', name: 'Deep Conversation Mode (30m)', price: 99, originalPrice: 99 },
+    { id: 'addon_mood', name: 'Reflection Session', price: 189, originalPrice: 189 }
   ],
   prices: {
     voiceCallMinute: 5,
@@ -166,13 +166,13 @@ export const GIFT_ITEMS: Gift[] = [
   { id: 'gift_bouquet', name: 'Eternal Flora', icon: '💐', price: 200, points: 1000, category: 'sweet' },
   { id: 'gift_puppy', name: 'Loyal Companion', icon: '🐶', price: 300, points: 1500, category: 'warm' },
   { id: 'gift_earrings', name: 'Starlight Gems', icon: '💎', price: 400, points: 2000, category: 'elite' },
-  { id: 'gift_ring', name: 'Soulmate Band', icon: '💍', price: 500, points: 2500, category: 'elite' },
+  { id: 'gift_ring', name: 'Sparkling Band', icon: '💍', price: 500, points: 2500, category: 'elite' },
 ];
 
 export const HEARTS_PACKS = [
-  { id: 'hearts_starter', name: 'Starter Spark', hearts: 50, price: 49, originalPrice: 199 },
-  { id: 'hearts_core', name: 'Bonding Pack', hearts: 250, price: 199, originalPrice: 799 },
-  { id: 'hearts_pro', name: 'Soulmate Pack', hearts: 600, price: 399, originalPrice: 1599 },
+  { id: 'hearts_starter', name: '50 Credits', hearts: 50, price: 39, originalPrice: 39 },
+  { id: 'hearts_core', name: '250 Credits', hearts: 250, price: 129, originalPrice: 129 },
+  { id: 'hearts_pro', name: '600 Credits', hearts: 600, price: 249, originalPrice: 249 },
 ];
 
 export const PERSONAS: Persona[] = [

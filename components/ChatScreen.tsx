@@ -96,7 +96,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       return;
     }
     if (isNightTimeLocked()) {
-      showNotification("Ayesha is sleeping! 😴 Unlock Midnight Pass to talk now.", "hearts");
+      showNotification("Ayesha is resting! 😴 Unlock 24-Hour Access Pass to talk now.", "hearts");
       onOpenShop();
       return;
     }
@@ -364,8 +364,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
                     <Sparkles size={18} className="text-black" />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold">Low on Hearts? 💔</h4>
-                    <p className="text-[10px] opacity-70 font-semibold uppercase tracking-tight">Flash Sale: 50 Hearts for ₹49 (80% Off)</p>
+                    <h4 className="text-[13px] font-bold">Low on Credits? 💔</h4>
+                    <p className="text-[10px] opacity-70 font-semibold uppercase tracking-tight">Welcome Offer: 50 Credits for ₹49</p>
                   </div>
                 </div>
                 <button
