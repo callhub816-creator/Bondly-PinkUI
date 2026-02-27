@@ -123,6 +123,68 @@ export async function onRequestPost({ request, env }) {
         const userHandle = userRow.username || "Guest";
         const currentPlan = (subRow?.plan_name || 'free').toLowerCase();
 
+        // GLOBAL_BUDGET_GUARD_START
+        let aiMode = "normal";
+        let maxLlmTokens = 500;
+        let historyLimit = 12;
+        let styleConstraint = "";
+
+        if (env.RATE_LIMIT_KV) {
+            try {
+                const estimatedInputTokens = Math.ceil(userMsgBody.length / 4) + maxLlmTokens;
+                const todayDate = new Date().toISOString().split('T')[0];
+                const globalKvKey = `global_ai_daily_usage_${todayDate}`;
+
+                const kvRes = await env.RATE_LIMIT_KV.get(globalKvKey);
+                let globalData = kvRes ? JSON.parse(kvRes) : { totalTokens: 0, mode: "normal" };
+
+                const currentGlobalTokens = globalData.totalTokens + estimatedInputTokens;
+                const maxDailyTokens = 20000000;
+                const ratio = currentGlobalTokens / maxDailyTokens;
+
+                if (ratio > 1) aiMode = "hard_protect";
+                else if (ratio > 0.85) aiMode = "protect";
+                else if (ratio > 0.50) aiMode = "throttle";
+
+                globalData.totalTokens = currentGlobalTokens;
+                globalData.mode = aiMode;
+
+                const secondsUntilMidnight = Math.floor((new Date(new Date().setUTCHours(23, 59, 59, 999)).getTime() - Date.now()) / 1000);
+                await env.RATE_LIMIT_KV.put(globalKvKey, JSON.stringify(globalData), { expirationTtl: Math.max(secondsUntilMidnight, 60) });
+            } catch (e) {
+                console.error("Global Budget Error:", e);
+            }
+        }
+
+        if (aiMode === "hard_protect") {
+            return new Response(JSON.stringify({
+                success: true,
+                aiMessage: { id: crypto.randomUUID(), body: "We're experiencing temporary high server demand. Please try again shortly.", created_at: new Date().toISOString() }
+            }), { headers: { "Content-Type": "application/json" } });
+        }
+
+        if (aiMode === "protect") {
+            if (currentPlan === 'free') {
+                return new Response(JSON.stringify({
+                    success: true,
+                    aiMessage: { id: crypto.randomUUID(), body: "We're experiencing high server demand. Please try again shortly.", created_at: new Date().toISOString() }
+                }), { headers: { "Content-Type": "application/json" } });
+            } else {
+                maxLlmTokens = Math.floor(maxLlmTokens * 0.75);
+            }
+        } else if (aiMode === "throttle") {
+            if (currentPlan === 'free') {
+                maxLlmTokens = Math.floor(maxLlmTokens * 0.60);
+                historyLimit = Math.floor(historyLimit * 0.70);
+                styleConstraint = " Keep your response concise and slightly shorter than usual.";
+            } else {
+                maxLlmTokens = Math.floor(maxLlmTokens * 0.85);
+            }
+        }
+        // GLOBAL_BUDGET_GUARD_END
+
+        let conversionSuffix = "";
+
         // 🛡️ SECURITY WALL: PREMIUM PERSONA & VOICE BYPASS PREVENTION
         const numericChatId = parseInt(chatId);
         if (currentPlan === 'free') {
@@ -138,14 +200,29 @@ export async function onRequestPost({ request, env }) {
                 return new Response(JSON.stringify({ error: "Forbidden: Voice Notes require active subscription." }), { status: 403 });
             }
 
-            // 🛑 DAILY MESSAGE LIMIT (Free Plan)
+            // 🛑 DAILY MESSAGE LIMIT + SMART CONVERSION (Free Plan)
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const { count: msgCount } = await env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?")
-                .bind(userId, twentyFourHoursAgo).first();
+
+            // Get both daily count and lifetime count
+            const [dailyMsgRow, lifetimeMsgRow] = await Promise.all([
+                env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?").bind(userId, twentyFourHoursAgo).first(),
+                env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user'").bind(userId).first()
+            ]);
+
+            const msgCount = dailyMsgRow?.count || 0;
+            const lifetimeCount = lifetimeMsgRow?.count || 0;
 
             if (msgCount >= 10) {
                 return new Response(JSON.stringify({ error: "Daily message limit reached" }), { status: 429 });
             }
+
+            // SMART_CONVERSION_LAYER_START
+            if (lifetimeCount >= 4 && lifetimeCount <= 10) {
+                if (lifetimeCount === 5 || lifetimeCount === 8) {
+                    conversionSuffix = "\n\n*(If you'd like extended memory and priority responses, Premium access unlocks those capabilities.)*";
+                }
+            }
+            // SMART_CONVERSION_LAYER_END
 
             // 🌙 MIDNIGHT LOCK (Free Plan)
             const nowUtc = new Date();
@@ -286,9 +363,9 @@ export async function onRequestPost({ request, env }) {
             locationSlang += ", babe, totally, vibes, slay, for real";
         }
 
-        // Fetch Context (Increased to 12 for better flow)
+        // Fetch Context (Length dynamically adjusted by Global Budget Guard)
         const { results: history } = await env.DB.prepare(
-            "SELECT role, body FROM messages WHERE chat_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 12"
+            `SELECT role, body FROM messages WHERE chat_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ${historyLimit}`
         ).bind(chatId, userId).all();
         const historyContext = (history || []).reverse().map(m => ({ role: m.role, content: m.body }));
 
@@ -320,7 +397,7 @@ export async function onRequestPost({ request, env }) {
         - If you learn a FACT: End with [FACT: <fact>].
         - If you learn a PREFERENCE (likes/dislikes/interests): End with [PREF: <preference>].
         
-        ${voiceConstraint}`;
+        ${voiceConstraint}${styleConstraint}`;
 
         let llmError = null;
         if (selectedKey && !cachedReply) {
@@ -335,7 +412,7 @@ export async function onRequestPost({ request, env }) {
                             ...historyContext,
                             { role: "user", content: userMsgBody }
                         ],
-                        max_tokens: 500,
+                        max_tokens: maxLlmTokens,
                         temperature: 0.8
                     })
                 });
@@ -382,7 +459,7 @@ export async function onRequestPost({ request, env }) {
                     if (didLearn) {
                         // Profile update skipped per schema
                     }
-                    aiReply = finalReply;
+                    aiReply = finalReply + conversionSuffix;
                 } else {
                     llmError = "AI Engine is temporarily unavailable. Please try again.";
                     console.error("DEBUG [SambaNova Failure]:", data.error?.message || llmRes.statusText);
