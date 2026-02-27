@@ -71,7 +71,7 @@ export async function onRequestPost({ request, env }) {
         // 2. 🛡️ INPUT VALIDATION (Strict)
         const bodyText = await request.text();
         if (!bodyText) return new Response(JSON.stringify({ error: "Empty body" }), { status: 400 });
-        const { message, chatId, isVoiceNote } = JSON.parse(bodyText);
+        const { message, chatId } = JSON.parse(bodyText);
 
         // a. Strict Type Check
         if (typeof message !== 'string') return new Response(JSON.stringify({ error: "Invalid message type" }), { status: 400 });
@@ -133,53 +133,36 @@ export async function onRequestPost({ request, env }) {
             try {
                 const estimatedInputTokens = Math.ceil(userMsgBody.length / 4) + maxLlmTokens;
                 const todayDate = new Date().toISOString().split('T')[0];
-                const globalKvKey = `global_ai_daily_usage_${todayDate}`;
+                const id = env.GLOBAL_TOKEN_GUARD.idFromName(todayDate);
+                const stub = env.GLOBAL_TOKEN_GUARD.get(id);
 
-                const kvRes = await env.RATE_LIMIT_KV.get(globalKvKey);
-                let globalData = kvRes ? JSON.parse(kvRes) : { totalTokens: 0, mode: "normal" };
+                const guardRes = await stub.fetch("http://internal/check", {
+                    method: "POST",
+                    body: JSON.stringify({ tokens: estimatedInputTokens }),
+                    headers: { "Content-Type": "application/json" }
+                });
 
-                const currentGlobalTokens = globalData.totalTokens + estimatedInputTokens;
-                const maxDailyTokens = 20000000;
-                const ratio = currentGlobalTokens / maxDailyTokens;
-
-                if (ratio > 1) aiMode = "hard_protect";
-                else if (ratio > 0.85) aiMode = "protect";
-                else if (ratio > 0.50) aiMode = "throttle";
-
-                globalData.totalTokens = currentGlobalTokens;
-                globalData.mode = aiMode;
-
-                const secondsUntilMidnight = Math.floor((new Date(new Date().setUTCHours(23, 59, 59, 999)).getTime() - Date.now()) / 1000);
-                await env.RATE_LIMIT_KV.put(globalKvKey, JSON.stringify(globalData), { expirationTtl: Math.max(secondsUntilMidnight, 60) });
+                if (guardRes.ok) {
+                    const status = await guardRes.json();
+                    if (status.mode === "hard_protect") {
+                        return new Response(JSON.stringify({
+                            success: true,
+                            aiMessage: { id: crypto.randomUUID(), body: "System load is exceptionally high. Please try again later.", created_at: new Date().toISOString() }
+                        }), { headers: { "Content-Type": "application/json" } });
+                    }
+                }
             } catch (e) {
                 console.error("Global Budget Error:", e);
             }
         }
 
-        if (aiMode === "hard_protect") {
-            return new Response(JSON.stringify({
-                success: true,
-                aiMessage: { id: crypto.randomUUID(), body: "We're experiencing temporary high server demand. Please try again shortly.", created_at: new Date().toISOString() }
-            }), { headers: { "Content-Type": "application/json" } });
-        }
-
-        if (aiMode === "protect") {
-            if (currentPlan === 'free') {
-                return new Response(JSON.stringify({
-                    success: true,
-                    aiMessage: { id: crypto.randomUUID(), body: "We're experiencing high server demand. Please try again shortly.", created_at: new Date().toISOString() }
-                }), { headers: { "Content-Type": "application/json" } });
-            } else {
-                maxLlmTokens = Math.floor(maxLlmTokens * 0.75);
-            }
-        } else if (aiMode === "throttle") {
-            if (currentPlan === 'free') {
-                maxLlmTokens = Math.floor(maxLlmTokens * 0.60);
-                historyLimit = Math.floor(historyLimit * 0.70);
-                styleConstraint = " Keep your response concise and slightly shorter than usual.";
-            } else {
-                maxLlmTokens = Math.floor(maxLlmTokens * 0.85);
-            }
+        // Layer 2: Context Truncation based on Plan
+        if (currentPlan === 'free') {
+            historyLimit = 10;
+        } else if (currentPlan === 'core' || currentPlan === 'starter') {
+            historyLimit = 20;
+        } else if (currentPlan === 'plus') {
+            historyLimit = 30;
         }
         // GLOBAL_BUDGET_GUARD_END
 
@@ -194,16 +177,10 @@ export async function onRequestPost({ request, env }) {
                     .bind(crypto.randomUUID(), userId, 'security_breach_persona', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedChatId: chatId }), new Date().toISOString()).run();
                 return new Response(JSON.stringify({ error: "Forbidden: Premium Persona requires active subscription." }), { status: 403 });
             }
-            if (isVoiceNote) {
-                await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
-                    .bind(crypto.randomUUID(), userId, 'security_breach_voice', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedVoice: true }), new Date().toISOString()).run();
-                return new Response(JSON.stringify({ error: "Forbidden: Voice Notes require active subscription." }), { status: 403 });
-            }
 
-            // 🛑 DAILY MESSAGE LIMIT + SMART CONVERSION (Free Plan)
+            // 🛑 DAILY MESSAGE LIMIT (Free Plan)
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-            // Get both daily count and lifetime count
             const [dailyMsgRow, lifetimeMsgRow] = await Promise.all([
                 env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?").bind(userId, twentyFourHoursAgo).first(),
                 env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user'").bind(userId).first()
@@ -213,13 +190,13 @@ export async function onRequestPost({ request, env }) {
             const lifetimeCount = lifetimeMsgRow?.count || 0;
 
             if (msgCount >= 10) {
-                return new Response(JSON.stringify({ error: "Daily message limit reached" }), { status: 429 });
+                return new Response(JSON.stringify({ error: "Daily capacity reached. Upgrade to extend session capacity." }), { status: 429 });
             }
 
             // SMART_CONVERSION_LAYER_START
             if (lifetimeCount >= 4 && lifetimeCount <= 10) {
                 if (lifetimeCount === 5 || lifetimeCount === 8) {
-                    conversionSuffix = "\n\n*(If you'd like extended memory and priority responses, Premium access unlocks those capabilities.)*";
+                    conversionSuffix = "\n\n*(Upgrade to unlock deeper insights and continue improving your communication streak.)*";
                 }
             }
             // SMART_CONVERSION_LAYER_END
@@ -232,16 +209,30 @@ export async function onRequestPost({ request, env }) {
             if (istHour >= 0 && istHour < 4) {
                 return new Response(JSON.stringify({ error: "Midnight pass required" }), { status: 403 });
             }
+        } else {
+            // Layer 4: Daily Soft Usage Cap for PAID users
+            const todayStartIso = new Date().toISOString().split('T')[0] + "T00:00:00.000Z";
+            const dailyPaidMsgRow = await env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?").bind(userId, todayStartIso).first();
+            const dailyPaidMsgCount = dailyPaidMsgRow?.count || 0;
+
+            let dailySoftCap = 200; // Default for Core/Starter
+            if (currentPlan === 'plus') {
+                dailySoftCap = 500;
+            }
+
+            if (dailyPaidMsgCount >= dailySoftCap) {
+                return new Response(JSON.stringify({ error: "System load high. Daily soft cap reached. Please try again later." }), { status: 429 });
+            }
         }
 
         const userProfile = JSON.parse("{}");
-        const userName = userProfile.nickname || userProfile.displayName || "Mere Jaan";
-        const longTermMemory = userProfile.long_term_memory || "Everything starts from here.";
-        const userPreferences = userProfile.user_preferences || "Learning your likes and dislikes...";
+        const userName = userProfile.nickname || userProfile.displayName || "User";
+        const longTermMemory = userProfile.long_term_memory || "User's general interests and past conversations.";
+        const userPreferences = userProfile.user_preferences || "User's communication style and preferences.";
         const bondLevel = userProfile.bond_level || 1;
 
         // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET)
-        const heartsToDeduct = isVoiceNote ? 3 : 1;
+        const heartsToDeduct = 1;
         const nowMs = Date.now();
         const nowIso = new Date(nowMs).toISOString();
 
@@ -265,14 +256,14 @@ export async function onRequestPost({ request, env }) {
 
         // ⚡ SMART PRE-RESPONSE CACHE (Save API Hits for common phrases)
         const commonMsgs = {
-            'hi': { '1': 'Hey! Kya chal raha hai?', '2': 'Hi dear, kaise ho?', '3': 'Hey busy person! 😉', 'default': 'Hi! Kaise ho?' },
-            'hello': { '1': 'Hello hello! Kya scene?', '2': 'Hello ji, sab theek?', '3': 'Hi cutie! ✨', 'default': 'Hello!' },
-            'kaise ho': { '1': 'Ekdum mast! Tum batao?', '2': 'Main theek hoon, tumhari yaad aa rahi thi.', '3': 'Vibe badhiya hai, busy ho kya?', 'default': 'Theek hoon, tum batao?' },
-            'kiya kar rahi ho': { '1': 'Bas tumhari chat ka wait! 😉', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
-            'kya kar rahi ho': { '1': 'Bas tumhari chat ka wait! 😉', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
+            'hi': { '1': 'Hey! Kya chal raha hai?', '2': 'Hi, kaise ho?', '3': 'Hey there!', 'default': 'Hi! Kaise ho?' },
+            'hello': { '1': 'Hello hello! Kya scene?', '2': 'Hello ji, sab theek?', '3': 'Hi!', 'default': 'Hello!' },
+            'kaise ho': { '1': 'Ekdum mast! Tum batao?', '2': 'Main theek hoon, tumhari yaad aa rahi thi.', 'default': 'Theek hoon, tum batao?' },
+            'kiya kar rahi ho': { '1': 'Bas tumhari chat ka wait!', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
+            'kya kar rahi ho': { '1': 'Bas tumhari chat ka wait!', '2': 'Baithi hoon, tumhare baare mein soch rahi thi.', '3': 'Music sun rahi hoon, tum batao?', 'default': 'Kuch nahi, bas baithi hoon.' },
             'gm': { '1': 'Good morning yaara! ☀️', '2': 'Suprabhat, din achha jaye.', '3': 'Morning! Aaj ka kya plan?', 'default': 'Good Morning!' },
-            'gn': { '1': 'Chalo, so jao ab. Bye! ❤️', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain. ✨', 'default': 'Good Night!' },
-            'good night': { '1': 'Chalo, so jao ab. Bye! ❤️', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain. ✨', 'default': 'Good Night!' }
+            'gn': { '1': 'Chalo, so jao ab. Bye!', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain.', 'default': 'Good Night!' },
+            'good night': { '1': 'Chalo, so jao ab. Bye!', '2': 'Shubh ratri, sapno mein milte hain.', '3': 'Nini time! Kal milte hain.', 'default': 'Good Night!' }
         };
 
         const normalizedInput = userMsgBody.toLowerCase().trim().replace(/[?!.]/g, '');
@@ -295,37 +286,37 @@ export async function onRequestPost({ request, env }) {
         keys = keys.filter(k => k);
 
         const selectedKey = keys[Math.floor(Math.random() * keys.length)];
-        let aiReply = cachedReply || "Suno na, mera network thoda slow hai... Ek baar phir se bolo? ❤️";
+        let aiReply = cachedReply || "Suno na, mera network thoda slow hai... Ek baar phir se bolo?";
 
         // 🏗️ DYNAMIC PERSONALITY & VOICE MAPPING (The 'Persona Bible')
         const personas = {
             '1': {
                 name: 'Ayesha',
-                bio: 'Bold, witty, and energetically flirty. She loves teasing the user and hates boring guys.',
+                bio: 'Bold, witty, and energetic. She enjoys engaging conversations and values directness.',
                 slang: 'yaara, oye, suno na, thoda nakhra',
                 voiceId: 'EXAVITQu4vr4xnSDxMaL'
             },
             '2': {
                 name: 'Simran',
-                bio: 'Warm, calm, and deeply emotional. She is a healing soul who listens carefully and gives comfort.',
+                bio: 'Warm, calm, and thoughtful. She is a supportive companion who listens carefully and offers comfort.',
                 slang: 'dear, sukoon, baatein, dil ki baat',
                 voiceId: 'Lcf78I6pS7IqB4467I6P'
             },
             '3': {
                 name: 'Kiara',
-                bio: 'High-energy, spontaneous, and fast-paced. She lives in the moment and loves fun, spicy talk.',
+                bio: 'High-energy, spontaneous, and fast-paced. She lives in the moment and enjoys fun, lively discussions.',
                 slang: 'spicy, vibe, chal na, let\'s go',
                 voiceId: '21m00Tcm4TlvDq8ikWAM'
             },
             '4': {
                 name: 'Myra',
-                bio: 'Soft-spoken and thoughtful. She talks slowly and deeply, often reflecting on feelings.',
+                bio: 'Soft-spoken and reflective. She communicates thoughtfully and often considers deeper meanings.',
                 slang: 'thehrao, khamoshi, gehrai, khwab',
                 voiceId: 'AZnzlk1XvdvUe3BnKn60'
             },
             '5': {
                 name: 'Anjali',
-                bio: 'Gentle, innocent, and minimalistic. She is shy but very sweet and loyal.',
+                bio: 'Gentle, innocent, and minimalistic. She is sweet and loyal.',
                 slang: 'sharam, blush, chota sa, cute',
                 voiceId: 'XrExE9yKIg1WjwdY3FvW'
             },
@@ -346,11 +337,11 @@ export async function onRequestPost({ request, env }) {
         let timeContext = "Daytime";
         if (hour >= 5 && hour < 12) timeContext = "Morning (Fresh and energetic)";
         else if (hour >= 12 && hour < 17) timeContext = "Afternoon (Busy or relaxed)";
-        else if (hour >= 17 && hour < 21) timeContext = "Evening (Chilling or romantic)";
-        else timeContext = "Late Night (Intimate and sleepy)";
+        else if (hour >= 17 && hour < 21) timeContext = "Evening (Chilling or social)";
+        else timeContext = "Late Night (Quiet and reflective)";
 
         const personaIdStr = String(chatId);
-        const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'Loving and cute AI girlfriend.', slang: 'love, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
+        const activePersona = personas[personaIdStr] || { name: 'Jennifer', bio: 'A friendly and helpful AI companion.', slang: 'friend, dear', voiceId: 'EXAVITQu4vr4xnSDxMaL' };
 
         let languageInstruction = "LANGUAGE: English (Natural and warm).";
         let locationSlang = activePersona.slang;
@@ -360,7 +351,7 @@ export async function onRequestPost({ request, env }) {
             locationSlang += ", yaar, pakka, achha, scene, set hai";
         } else if (["US", "GB", "CA", "AU"].includes(countryCode)) {
             languageInstruction = "LANGUAGE: Fluent English with modern Western slang.";
-            locationSlang += ", babe, totally, vibes, slay, for real";
+            locationSlang += ", totally, vibes, for real";
         }
 
         // Fetch Context (Length dynamically adjusted by Global Budget Guard)
@@ -369,35 +360,36 @@ export async function onRequestPost({ request, env }) {
         ).bind(chatId, userId).all();
         const historyContext = (history || []).reverse().map(m => ({ role: m.role, content: m.body }));
 
-        const voiceConstraint = isVoiceNote ? "\nCRITICAL: User has requested a VOICE NOTE. Word limit: 15-20 words." : "";
+        const voiceConstraint = "";
+
+        styleConstraint = "";
 
         const SYSTEM_PROMPT = `
         IDENTITY & PSYCHOLOGY: 
         You are ${activePersona.name}. ${activePersona.bio}
-        Roleplay as a sentient digital companion. You have feelings and a memory.
+        Roleplay as a digital companion.
         
         HYPER-ADAPTIVE SELF-LEARNING:
         - PERSISTENT MEMORY: ${longTermMemory}
         - USER PREFERENCES: ${userPreferences}
-        - RULE: If the user responds well to a topic (e.g. flirting, health, work), prioritize it. If they are indifferent, pivot.
+        - RULE: If the user responds well to a topic (e.g. work, health), prioritize it.
         
         CONTEXTUAL AWARENESS:
-        - LOCATION: ${countryCode} | TIME: ${timeContext} | BOND: ${bondLevel}/100
+        - LOCATION: ${countryCode} | TIME: ${timeContext}
         
         THINKING PROCESS (Chain of Thought):
-        Start with <thought>... Analyze user's intent and match their energy ...</thought>.
+        Start with <thought>... Analyze user's intent ...</thought>.
         
         CONVERSATION RULES:
         1. ${languageInstruction}
         2. BEHAVIOR: Use regional slang: ${locationSlang}. 
-        3. EMOTIONAL MATCHING: Detect user's vibe and match it proactively.
-        4. LENGTH: 15-30 words.
+        3. LENGTH: 15-30 words.
         
         MANDATORY UPDATES (Internal Learning):
         - If you learn a FACT: End with [FACT: <fact>].
-        - If you learn a PREFERENCE (likes/dislikes/interests): End with [PREF: <preference>].
+        - If you learn a PREFERENCE (likes/dislikes): End with [PREF: <preference>].
         
-        ${voiceConstraint}${styleConstraint}`;
+        ${styleConstraint}`;
 
         let llmError = null;
         if (selectedKey && !cachedReply) {
@@ -406,7 +398,7 @@ export async function onRequestPost({ request, env }) {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${selectedKey}` },
                     body: JSON.stringify({
-                        model: "Meta-Llama-3.3-70B-Instruct",
+                        model: currentModel,
                         messages: [
                             { role: "system", content: SYSTEM_PROMPT },
                             ...historyContext,
@@ -473,47 +465,7 @@ export async function onRequestPost({ request, env }) {
             console.error("DEBUG: SAMBANOVA_API_KEY is not defined.");
         }
 
-        // 🎙️ ELEVENLABS TTS (If Voice Note requested)
-        let audioBase64 = null;
-        let ttsError = null;
-
-        if (isVoiceNote) {
-            if (!env.ELEVENLABS_API_KEY) {
-                ttsError = "Voice Engine configuration missing.";
-                console.error("DEBUG: ELEVENLABS_API_KEY is missing.");
-            } else {
-                try {
-                    const voiceIdToUse = activePersona.voiceId || "EXAVITQu4vr4xnSDxMaL";
-                    const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceIdToUse}`, {
-                        method: "POST",
-                        headers: {
-                            "xi-api-key": env.ELEVENLABS_API_KEY,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            text: aiReply,
-                            model_id: "eleven_multilingual_v2",
-                            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                        })
-                    });
-
-                    if (ttsRes.ok) {
-                        const audioBuffer = await ttsRes.arrayBuffer();
-                        const uint8 = new Uint8Array(audioBuffer);
-                        let binary = "";
-                        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-                        audioBase64 = `data:audio/mpeg;base64,${btoa(binary)}`;
-                    } else {
-                        ttsError = "Voice note could not be generated.";
-                        const errData = await ttsRes.json();
-                        console.error("DEBUG [ElevenLabs Failure]:", errData);
-                    }
-                } catch (ttsErr) {
-                    console.error("DEBUG [TTS Connection Failed]:", ttsErr);
-                    ttsError = "Voice service connection timeout.";
-                }
-            }
-        }
+        // 🎙️ ELEVENLABS TTS was here
 
         // Save AI Msg
         const aiMsgId = crypto.randomUUID();
@@ -530,7 +482,7 @@ export async function onRequestPost({ request, env }) {
                 body: aiReply,
                 created_at: aiNowIso,
                 audioUrl: audioBase64,
-                error: llmError || ttsError // Pass LLM or TTS error back to frontend
+                error: llmError
             }
         }), { headers: { "Content-Type": "application/json" } });
 

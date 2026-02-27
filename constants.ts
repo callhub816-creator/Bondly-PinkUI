@@ -113,7 +113,7 @@ export const GATING_CONFIG = {
       price: 199,
       originalPrice: 999,
       duration: '30d',
-      features: ['Unlimited Text', 'Emotional Recall', 'Voice Access'],
+      features: ['Unlimited Text', 'Emotional Recall', 'Priority Support'],
       tier: 'CORE'
     },
     plus: {
@@ -122,12 +122,11 @@ export const GATING_CONFIG = {
       price: 499,
       originalPrice: 2499,
       duration: 'Lifetime/Premium',
-      features: ['Unlock ALL Personas', 'Priority AI Model', 'Unlimited Voice Calls'],
+      features: ['Unlock ALL Personas', 'Priority AI Model', 'Customization'],
       tier: 'PLUS'
     }
   },
   addons: [
-    { id: 'addon_voice', name: 'Voice Notes', price: 29, originalPrice: 99 },
     { id: 'addon_midnight', name: 'Midnight Talk (30m)', price: 49, originalPrice: 199 },
     { id: 'addon_mood', name: 'Mood Repair', price: 99, originalPrice: 399 }
   ],

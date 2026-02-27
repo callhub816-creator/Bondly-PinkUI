@@ -24,17 +24,24 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "Original transaction not found for this reference" }), { status: 404 });
         }
 
-        // originalTransaction.amount is usually in whole rupees if inserted that way, or hearts.
-        // Assuming amount in DB is Rupees (amountPaid / 100).
-        if ((refund_amount / 100) > originalTransaction.amount) {
+        const original_amount = Math.round(originalTransaction.amount * 100);
+
+        if (refund_amount > original_amount) {
             return new Response(JSON.stringify({ error: "Refund amount exceeds original transaction amount" }), { status: 400 });
         }
 
-        // Ensure user has enough balance (if hearts or rupees)
-        const user = await env.DB.prepare(`SELECT hearts FROM users WHERE id = ?`).bind(originalTransaction.user_id).first();
-        const expectedHeartDebit = calculateHeartEquivalent(refund_amount); // Implementation dependent
+        const original_hearts = calculateHeartEquivalent(original_amount);
+        const refund_ratio = refund_amount / original_amount;
+        let hearts_to_deduct = Math.floor(original_hearts * refund_ratio);
 
-        if (user.hearts < expectedHeartDebit) {
+        if (refund_amount > 0 && hearts_to_deduct === 0) {
+            hearts_to_deduct = 1;
+        }
+
+        // Ensure user has enough balance
+        const user = await env.DB.prepare(`SELECT hearts FROM users WHERE id = ?`).bind(originalTransaction.user_id).first();
+
+        if (user.hearts < hearts_to_deduct) {
             return new Response(JSON.stringify({ error: "User has insufficient balance for refund debit" }), { status: 400 });
         }
 
@@ -64,7 +71,7 @@ export async function onRequestPost({ request, env }) {
         await env.DB.batch([
             env.DB.prepare(`
                 UPDATE users SET hearts = hearts - ? WHERE id = ?
-            `).bind(expectedHeartDebit, originalTransaction.user_id),
+            `).bind(hearts_to_deduct, originalTransaction.user_id),
 
             env.DB.prepare(`
                 INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at)
