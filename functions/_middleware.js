@@ -41,6 +41,30 @@ export async function onRequest({ request, next, env }) {
         }
     }
 
+    // 🛡️ PHASE 2.5: STRICT ORIGIN SPOOFING / CSRF PROTECTION
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
+        const origin = request.headers.get("Origin");
+
+        if (origin) {
+            try {
+                const originUrl = new URL(origin);
+                const hostname = originUrl.hostname;
+                const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+                const isProd = hostname === "bondly.online" || hostname.endsWith(".bondly.online");
+                const isPreview = hostname.endsWith(".pages.dev");
+
+                if (!isLocal && !isProd && !isPreview) {
+                    return new Response(JSON.stringify({ error: "Forbidden: Invalid Origin Blocked (CSRF Guard)" }), { status: 403, headers: { "Content-Type": "application/json" } });
+                }
+            } catch (e) {
+                return new Response(JSON.stringify({ error: "Forbidden: Malformed Origin" }), { status: 403, headers: { "Content-Type": "application/json" } });
+            }
+        } else {
+            // Strict enforce: If there is no Origin on a POST (e.g. from Postman or cURL), block it.
+            return new Response(JSON.stringify({ error: "Forbidden: Missing Origin Header (CSRF Guard)" }), { status: 403, headers: { "Content-Type": "application/json" } });
+        }
+    }
+
     const response = await next();
 
     // 2. 🔒 SECURITY HEADERS (Production Hardening)
