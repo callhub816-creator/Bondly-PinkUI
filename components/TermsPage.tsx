@@ -37,7 +37,7 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
         <section className="space-y-3">
           <h3 className="text-lg font-bold text-[#4A2040]">2. Eligibility</h3>
           <p className="opacity-90">
-            You must be at least 18 years of age to use this platform. By continuing, you represent that you meet this age requirement. We reserve the right to terminate access if we believe a user is under the legal age.
+            Users must be at least 18 years of age to access and use this software platform. By continuing, you represent that you meet this age requirement. We reserve the right to terminate access if we believe a user is under the legal age.
           </p>
         </section>
 
@@ -103,7 +103,7 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
         <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
-          © 2026 Bondly AI • All Rights Reserved • 18+ Only<br />
+          © 2026 Bondly AI • All Rights Reserved<br />
           Entertainment & Well-being Platform
         </p>
       </footer>

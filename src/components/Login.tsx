@@ -119,12 +119,6 @@ const Login: React.FC<{ onSwitchToSignup: () => void }> = ({ onSwitchToSignup })
         </p>
 
         <div className="mt-6 pt-4 border-t border-[#B28DFF]/10 flex flex-col items-center gap-2 opacity-50">
-          <div className="flex items-center gap-1.5">
-            <Shield size={10} />
-            <span className="text-[9px] font-bold uppercase tracking-widest text-center">
-              Strictly 18+ Only | Private v2.1
-            </span>
-          </div>
         </div>
       </div>
     </div>

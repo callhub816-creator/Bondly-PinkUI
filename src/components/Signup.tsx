@@ -115,12 +115,6 @@ const Signup: React.FC<{ onSwitchToLogin: () => void }> = ({ onSwitchToLogin }) 
         </p>
 
         <div className="mt-6 pt-4 border-t border-[#B28DFF]/10 flex flex-col items-center gap-2 opacity-50">
-          <div className="flex items-center gap-1.5 text-center">
-            <Shield size={10} />
-            <span className="text-[9px] font-bold uppercase tracking-widest leading-tight">
-              Strictly 18+ Only | Private AI support
-            </span>
-          </div>
         </div>
       </div>
       <style>{`
