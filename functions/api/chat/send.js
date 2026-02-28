@@ -1,4 +1,4 @@
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
     if (!env.DB) return new Response(JSON.stringify({ error: "DB missing" }), { status: 500 });
     const startTime = Date.now();
 
@@ -474,6 +474,30 @@ export async function onRequestPost({ request, env }) {
 
         await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)")
             .bind(aiMsgId, chatId, userId, 'assistant', aiReply, metadata, aiNowIso).run();
+
+
+        // 🏗️ D1 HOUSEKEEPING (Lazy Archival to prevent exhaustion)
+        // 5% chance per message to trigger background cleanup of messages > 30 days
+        if (Math.random() < 0.05) {
+            const housekeeping = async () => {
+                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+                const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+                try {
+                    await env.DB.batch([
+                        env.DB.prepare("DELETE FROM messages WHERE created_at < ?").bind(thirtyDaysAgo),
+                        env.DB.prepare("DELETE FROM user_visits WHERE created_at < ? AND visit_type != 'security_breach_persona'").bind(fifteenDaysAgo),
+                        env.DB.prepare("DELETE FROM user_sessions WHERE revoked = 1 OR expires_at < ?").bind(Date.now())
+                    ]);
+                } catch (e) {
+                    console.error("Housekeeping Error:", e);
+                }
+            };
+            if (typeof waitUntil === 'function') {
+                waitUntil(housekeeping());
+            } else {
+                housekeeping().catch(e => console.error("Housekeeping async error:", e));
+            }
+        }
 
         return new Response(JSON.stringify({
             success: true,
