@@ -342,9 +342,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         },
         prefill: {
-          name: user?.displayName || 'User',
-          email: 'user@bondly.online',
-          contact: '9999999999'
+          name: user?.displayName || 'Rajesh Madhukar Navsagar',
+          email: 'navsagar.rajesh@gmail.com',
+          contact: '8329576393'
         },
         notes: {
           address: "Bondly AI Corp"
