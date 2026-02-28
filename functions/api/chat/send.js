@@ -398,7 +398,7 @@ export async function onRequestPost({ request, env }) {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${selectedKey}` },
                     body: JSON.stringify({
-                        model: currentModel,
+                        model: "Meta-Llama-3.3-70B-Instruct",
                         messages: [
                             { role: "system", content: SYSTEM_PROMPT },
                             ...historyContext,
