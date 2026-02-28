@@ -98,8 +98,7 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
           </a>
           <p className="text-sm opacity-80 mt-4">
             <strong>Platform Owner:</strong> Rajesh Madhukar Navsagar<br />
-            <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047<br />
-            <strong>Phone Number:</strong> +91 8329 576393
+            <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047
           </p>
         </section>
 
