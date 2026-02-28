@@ -17,6 +17,3 @@ id = "d325c06035d44841a94a2637982062d2"
 # Production Environment Variables
 # Inhe dashboard se set karna best rehta hai
 NODE_VERSION = "20"
-
-[triggers]
-crons = ["0 0 * * *"] # Run daily at midnight UTC
