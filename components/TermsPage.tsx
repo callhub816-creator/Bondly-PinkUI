@@ -96,11 +96,6 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
           <a href="mailto:support@bondly.online" className="text-[#B28DFF] font-medium hover:underline block">
             support@bondly.online
           </a>
-          <div className="space-y-2 mt-4 text-xs opacity-80 border-t border-[#B28DFF]/20 pt-4">
-            <p><strong>Legal Name:</strong> [Placeholder Company Name]</p>
-            <p><strong>Registered Address:</strong> [Placeholder Address, State, PIN Code]</p>
-            <p><strong>Contact:</strong> support@bondly.online | +91-XXXXXXXXXX</p>
-          </div>
         </section>
 
       </div>
