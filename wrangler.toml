@@ -2,7 +2,6 @@
 
 name = "bondly-official"
 compatibility_date = "2024-02-22"
-pages_build_output_dir = "./dist"
 
 [[d1_databases]]
 binding = "DB"
@@ -12,8 +11,3 @@ database_id = "ff7486c4-2ecb-4247-8b67-d24a2ddb8749"
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "d325c06035d44841a94a2637982062d2"
-
-[vars]
-# Production Environment Variables
-# Inhe dashboard se set karna best rehta hai
-NODE_VERSION = "20"
