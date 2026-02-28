@@ -93,9 +93,14 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
         <section className="space-y-3 bg-white/50 p-6 rounded-2xl border border-white/60">
           <h3 className="text-lg font-bold text-[#4A2040]">Contact Us</h3>
           <p className="opacity-90 mb-2">For any legal or terms-related questions, please email:</p>
-          <a href="mailto:support@Bondly.in" className="text-[#B28DFF] font-medium hover:underline block">
-            support@Bondly.in
+          <a href="mailto:support@bondly.online" className="text-[#B28DFF] font-medium hover:underline block">
+            support@bondly.online
           </a>
+          <div className="space-y-2 mt-4 text-xs opacity-80 border-t border-[#B28DFF]/20 pt-4">
+            <p><strong>Legal Name:</strong> [Placeholder Company Name]</p>
+            <p><strong>Registered Address:</strong> [Placeholder Address, State, PIN Code]</p>
+            <p><strong>Contact:</strong> support@bondly.online | +91-XXXXXXXXXX</p>
+          </div>
         </section>
 
       </div>

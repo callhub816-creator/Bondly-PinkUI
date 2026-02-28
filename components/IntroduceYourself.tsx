@@ -17,7 +17,7 @@ const IntroduceYourself: React.FC<IntroduceYourselfProps> = ({ onComplete }) => 
     const [formData, setFormData] = useState<UserInfo>({
         name: '',
         age: '18',
-        lookingFor: 'ROMANCE'
+        lookingFor: 'MENTORSHIP'
     });
 
     useEffect(() => {
@@ -94,7 +94,7 @@ const IntroduceYourself: React.FC<IntroduceYourselfProps> = ({ onComplete }) => 
                             <Sparkles size={14} /> What are you looking for?
                         </label>
                         <div className="flex gap-3">
-                            {['FRIENDSHIP', 'ROMANCE', 'HEALING'].map((option) => (
+                            {['FRIENDSHIP', 'MENTORSHIP', 'CASUAL'].map((option) => (
                                 <button
                                     key={option}
                                     onClick={() => setFormData({ ...formData, lookingFor: option })}

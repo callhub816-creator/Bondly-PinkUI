@@ -56,7 +56,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
   const connectionPoints = profile?.connectionPoints?.[persona.id] || 0;
 
   const getLevel = (points: number) => {
-    if (points >= 1000) return { label: 'Soulmate', color: 'bg-gradient-to-r from-purple-500 to-pink-500', min: 1000, max: 2000 };
+    if (points >= 1000) return { label: 'Best Friend', color: 'bg-gradient-to-r from-purple-500 to-pink-500', min: 1000, max: 2000 };
     if (points >= 500) return { label: 'Trusted', color: 'bg-pink-500', min: 500, max: 1000 };
     if (points >= 200) return { label: 'Close Friend', color: 'bg-pink-400', min: 200, max: 500 };
     if (points >= 50) return { label: 'Friend', color: 'bg-blue-400', min: 50, max: 200 };

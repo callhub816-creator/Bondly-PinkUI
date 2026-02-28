@@ -118,7 +118,7 @@ export async function onRequestPost({ request, env }) {
             setTier = 'CORE';
         }
         else if (amountPaid === 39900) {
-            // Soulmate Pack (Hearts)
+            // Pro Pack (Hearts)
             heartsToAdd = 600;
         }
         else if (amountPaid === 49900) {

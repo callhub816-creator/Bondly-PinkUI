@@ -44,7 +44,7 @@ const GiftSelector: React.FC<GiftSelectorProps> = ({ onClose, companionId, compa
                 }`}>
                 <div className="flex items-center justify-between mb-5 px-1">
                     <div>
-                        <h3 className="text-sm font-black text-pink-500 uppercase tracking-tighter">Soulmate Collection</h3>
+                        <h3 className="text-sm font-black text-pink-500 uppercase tracking-tighter">Premium Collection</h3>
                         <p className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Surprise {companionName}</p>
                     </div>
                     <div className="flex items-center gap-1.5 bg-pink-50 dark:bg-pink-500/10 px-3 py-1.5 rounded-full border border-pink-100 dark:border-pink-500/20">

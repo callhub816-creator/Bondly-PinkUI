@@ -201,7 +201,7 @@ export async function onRequestPost({ request, env }) {
             }
             // SMART_CONVERSION_LAYER_END
 
-            // 🌙 MIDNIGHT LOCK (Free Plan)
+            // 🌙 QUIET HOURS LOCK (Free Plan)
             const nowUtc = new Date();
             const istDate = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
             const istHour = istDate.getUTCHours();

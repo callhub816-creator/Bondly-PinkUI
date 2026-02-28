@@ -14,10 +14,10 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
   const faqs = [
     {
       q: "What is Bondly AI?",
-      a: "Bondly AI is an online platform that lets you connect with virtual AI companions. You can chat via text or have realistic voice calls with AI characters designed for entertainment, emotional comfort, and friendship."
+      a: "Bondly AI is an online platform that lets you connect with virtual AI companions. You can chat via text or have realistic voice calls with AI characters designed for entertainment, mentorship, and friendship."
     },
     {
-      q: "Is this a real dating service?",
+      q: "Is this a real relationship service?",
       a: "No. Bondly AI provides interactions with fictional, digitally generated characters. It is not a platform for social networking or matchmaking."
     },
     {
@@ -111,7 +111,7 @@ const FAQPage: React.FC<PageProps> = ({ onBack }) => {
       <footer className="py-8 px-6 text-center border-t border-[#B28DFF]/10 bg-[#FFF0F5]">
         <p className="text-[#5e3a58]/60 text-xs font-medium leading-loose">
           © 2025 Bondly • All Rights Reserved • 18+ Only<br />
-          Designed for safe, private emotional AI interactions
+          Designed for safe, private conversational AI interactions
         </p>
       </footer>
     </div>

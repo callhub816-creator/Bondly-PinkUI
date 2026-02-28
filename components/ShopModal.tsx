@@ -41,7 +41,7 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
 
-                    {/* NEW USER WELCOME / ADDICTION HOOK */}
+                    {/* NEW USER WELCOME / ENGAGEMENT HOOK */}
                     {isNewUser && (
                         <div className="p-4 bg-gradient-to-r from-pink-500 to-purple-600 rounded-[24px] text-white shadow-xl animate-bounce-subtle">
                             <h4 className="font-black text-sm uppercase tracking-widest mb-1 flex items-center gap-2">
