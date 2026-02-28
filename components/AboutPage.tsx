@@ -65,9 +65,13 @@ const AboutPage: React.FC<PageProps> = ({ onBack }) => {
           <p className="leading-relaxed opacity-90 mb-4">
             We are a team of AI enthusiasts committed to bettering virtual companionship. If you have any questions, reach out to our team.
           </p>
-          <a href="mailto:support@bondly.online" className="inline-flex items-center gap-2 text-[#B28DFF] font-medium hover:underline">
+          <a href="mailto:support@bondly.online" className="inline-flex items-center gap-2 text-[#B28DFF] font-medium hover:underline mb-2">
             <Mail size={18} /> support@bondly.online
           </a>
+          <p className="text-[11px] opacity-70">
+            <strong>Platform Owner:</strong> Rajesh Madhukar Navsagar<br />
+            <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047
+          </p>
         </section>
 
       </div>

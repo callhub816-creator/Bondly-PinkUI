@@ -212,7 +212,8 @@ const ShopModal: React.FC<ShopModalProps> = ({ onClose, isDarkMode }) => {
 
                 <div className={`p-4 border-t ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
                     <p className="text-[10px] text-center opacity-60 font-medium">
-                        Payments are RBI compliant. Billed as "Digital Experience Credits".
+                        Payments are RBI compliant. Billed as "Digital Experience Credits".<br />
+                        Owned by: Rajesh Madhukar Navsagar (Lohegaon, Pune)
                     </p>
                 </div>
             </div>

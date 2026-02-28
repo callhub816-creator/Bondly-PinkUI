@@ -165,7 +165,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
   };
 
   const handleUnlockMessage = (msgId: string) => {
-    const cost = 3; // Lowered from 5 per user request
+    const cost = 5; // Align with GATING_CONFIG.vaultUnlockCost
     if ((profile.hearts ?? 0) < cost) {
       showNotification(`Needs ${cost} Hearts to unlock this private thought! ❤️`, 'hearts');
       onOpenShop();

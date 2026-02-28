@@ -328,7 +328,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           contact: '8329576393'
         },
         notes: {
-          address: "Bondly AI Corp"
+          address: "Lohegaon, Pune, Maharashtra"
         },
         theme: {
           color: "#FF9ACB"
