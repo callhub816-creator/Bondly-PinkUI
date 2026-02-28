@@ -9,6 +9,7 @@ import WalletWidget from './WalletWidget';
 import GiftSelector from './GiftSelector';
 import { PERSONA_PROMPTS, FALLBACK_REPLIES } from '../src/config/personaConfig';
 import { NAME_AGNOSTIC_NOTE, LANGUAGE_CONTROL_SYSTEM_MESSAGE, QUALITY_BOOSTER, HEARTS_SYSTEM_MESSAGE } from '../constants';
+import { authFetch } from '../utils/api';
 import { useNotification } from './NotificationProvider';
 
 interface ChatScreenProps {
@@ -121,9 +122,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       // Shuffles mood every few messages for realism
       if (messages.length % 5 === 0) shuffleMood();
 
-      const res = await fetch('/api/chat/send', {
+      const res = await authFetch('/api/chat/send', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, chatId: persona.id })
       });

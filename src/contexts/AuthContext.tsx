@@ -41,26 +41,7 @@ export const useAuth = () => {
   return ctx;
 };
 
-// Helper for authenticated fetches with Auto-Refresh
-const authFetch = async (url: string, options: any = {}) => {
-  // STRICT FIX: Always include credentials for cookies to be sent
-  const finalOptions = {
-    ...options,
-    credentials: "include" as RequestCredentials
-  };
-
-  let res = await fetch(url, finalOptions);
-
-  // If 401, attempt refresh automatically
-  if (res.status === 401) {
-    const refreshRes = await fetch('/api/auth/refresh', { method: 'POST', credentials: "include" });
-    if (refreshRes.ok) {
-      // Retry original request
-      res = await fetch(url, finalOptions);
-    }
-  }
-  return res;
-};
+import { authFetch } from '../../utils/api';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);

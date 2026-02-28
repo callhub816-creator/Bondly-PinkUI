@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
         const userAgent = request.headers.get("user-agent") || "unknown";
 
         const newRefreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
-        const newAccessExp = Date.now() + (15 * 60 * 1000);
+        const newAccessExp = Date.now() + (4 * 3600 * 1000); // 4 Hours
         const newRefreshExp = Date.now() + (30 * 86400000);
 
         const encoder = new TextEncoder();
@@ -42,15 +42,16 @@ export async function onRequestPost({ request, env }) {
 
         const isSecure = new URL(request.url).protocol === 'https:';
         const secureAttr = isSecure ? ' Secure;' : '';
-        const authCookie = `auth_token=${newAccessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=900`;
+        const authCookie = `auth_token=${newAccessToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=14400`;
         const refreshCookie = `refresh_token=${newRefreshToken}; Path=/; HttpOnly;${secureAttr} SameSite=Strict; Max-Age=2592000`;
 
+        const headers = new Headers();
+        headers.set("Content-Type", "application/json");
+        headers.append("Set-Cookie", authCookie);
+        headers.append("Set-Cookie", refreshCookie);
+
         return new Response(JSON.stringify({ success: true }), {
-            headers: [
-                ["Content-Type", "application/json"],
-                ["Set-Cookie", authCookie],
-                ["Set-Cookie", refreshCookie]
-            ]
+            headers
         });
 
     } catch (err) {

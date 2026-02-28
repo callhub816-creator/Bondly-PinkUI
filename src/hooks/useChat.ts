@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Message } from '../types/chat';
+import { authFetch } from '../../utils/api';
 
 interface UseChatProps {
     chatId: string;
@@ -16,7 +17,7 @@ export const useChat = ({ chatId, userId }: UseChatProps) => {
     // 1. Fetch Messages (GET)
     const fetchMessages = useCallback(async () => {
         try {
-            const res = await fetch(`/api/chat?chatId=${chatId}`, { credentials: 'include' });
+            const res = await authFetch(`/api/chat?chatId=${chatId}`);
             if (!res.ok) throw new Error('Failed to load chat');
             const data = await res.json();
             setMessages(data.messages || []);
@@ -51,9 +52,8 @@ export const useChat = ({ chatId, userId }: UseChatProps) => {
             };
             setMessages(prev => [...prev, optimisticMsg]);
 
-            const res = await fetch('/api/chat/send', {
+            const res = await authFetch('/api/chat/send', {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
                 },

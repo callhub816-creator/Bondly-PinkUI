@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
         const nowIso = new Date().toISOString();
 
         // 4. Create Session (Access Token: 15 Mins, Refresh Token: 30 Days)
-        const accessTokenExp = Date.now() + (15 * 60 * 1000);
+        const accessTokenExp = Date.now() + (4 * 3600 * 1000); // 4 Hours
         const refreshTokenVal = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(48))));
         const refreshExp = Date.now() + (30 * 86400000);
 
@@ -67,16 +67,17 @@ export async function onRequestPost({ request, env }) {
             ).bind(crypto.randomUUID(), userId, ip, JSON.stringify({ ip, username }), nowIso)
         ]);
 
+        const headers = new Headers();
+        headers.set("Content-Type", "application/json");
+        headers.append("Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=14400`);
+        headers.append("Set-Cookie", `refresh_token=${refreshTokenVal}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`);
+
         return new Response(JSON.stringify({
             success: true,
             user: { id: userId, username, displayName },
             profileData: { hearts: 20, subscription: 'FREE' }
         }), {
-            headers: [
-                ["Content-Type", "application/json"],
-                ["Set-Cookie", `auth_token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900`],
-                ["Set-Cookie", `refresh_token=${refreshTokenVal}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`]
-            ]
+            headers
         });
 
     } catch (err) {
