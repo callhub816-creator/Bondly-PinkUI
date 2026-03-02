@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { storage } from '../../utils/storage';
 import { UserProfile, SubscriptionPlan, ConnectionLevel } from '../../types';
-import { GATING_CONFIG } from '../../constants';
+import { GATING_CONFIG, HEARTS_PACKS } from '../../constants';
 import { useNotification } from '../../components/NotificationProvider';
 import { auth } from '../utils/firebase';
 import { signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -345,12 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const upgradeSubscription = async (plan: SubscriptionPlan) => {
     // Determine price dynamically (Placeholder prices)
-    const prices: Record<string, number> = {
-      starter: 49,
-      core: 199,
-      plus: 499
-    };
-    const price = prices[plan] || 99;
+    const price = (GATING_CONFIG.plans as any)[plan].price;
 
     await initiatePayment(price, `Upgrade to ${plan.toUpperCase()}`, async () => {
       const updated = { ...profile, subscription: plan };
@@ -362,12 +357,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const purchaseHearts = async (heartsAmount: number) => {
-    // Calculate price logic (approx ₹1 = 1.2 hearts for simplicity or use config)
-    // Using mapping from constants (reversed) or direct packs
-    // Just a placeholder logic: 1 Heart = ₹1 (roughly)
-    const price = Math.floor(heartsAmount * 0.8); // Example discount
+    // 🔥 FIXED: Use HEARTS_PACKS from constants instead of hardcoded math
+    const pack = HEARTS_PACKS.find(p => p.hearts === heartsAmount);
+    if (!pack) {
+      showNotification('Direct heart injection not allowed. Please use a pack.', 'error');
+      return;
+    }
+    const price = pack.price;
 
-    await initiatePayment(price, `${heartsAmount} Hearts Pack`, async () => {
+    await initiatePayment(price, pack.name, async () => {
       const updated = { ...profile, hearts: profile.hearts + heartsAmount };
       setProfile(updated);
       storage.saveProfile(updated);

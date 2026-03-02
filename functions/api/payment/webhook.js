@@ -54,9 +54,11 @@ export async function onRequestPost({ request, env }) {
     let heartsToAdd = 0;
     let setTier = null;
 
-    if (amountPaid === 4900) { heartsToAdd = 50; setTier = 'STARTER'; }
+    if (amountPaid === 3900) { heartsToAdd = 50; }
+    else if (amountPaid === 12900) { heartsToAdd = 250; }
+    else if (amountPaid === 24900) { heartsToAdd = 600; }
+    else if (amountPaid === 4900) { heartsToAdd = 50; setTier = 'STARTER'; }
     else if (amountPaid === 19900) { heartsToAdd = 250; setTier = 'CORE'; }
-    else if (amountPaid === 39900) { heartsToAdd = 600; }
     else if (amountPaid === 49900) { heartsToAdd = 1000; setTier = 'PLUS'; }
     else { return new Response("Invalid amount", { status: 400 }); }
 

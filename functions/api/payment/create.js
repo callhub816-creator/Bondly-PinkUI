@@ -1,21 +1,46 @@
 export async function onRequestPost({ request, env }) {
     try {
+        // 1. 🔒 AUTH CHECK
+        const cookieHeader = request.headers.get("Cookie") || "";
+        const authHeader = request.headers.get("Authorization") || "";
+
+        let token = null;
+        if (authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            const cookies = Object.fromEntries(cookieHeader.split(";").map(c => { const i = c.indexOf("="); return i === -1 ? [c.trim(), ""] : [c.slice(0, i).trim(), c.slice(i + 1).trim()]; }));
+            token = cookies["auth_token"];
+        }
+
+        if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+        let userId;
+        try {
+            const parts = token.split(".");
+            const payload = JSON.parse(atob(parts.length === 3 ? parts[1] : parts[0]));
+            if (payload.exp < Date.now()) throw new Error("Expired");
+            userId = payload.id;
+        } catch (e) {
+            return new Response(JSON.stringify({ error: "Invalid Session" }), { status: 401 });
+        }
+
         const body = await request.json();
         const planId = body.planId || body.amount; // Fallback for backward compatibility if needed, but ideally enforce planId
 
         // Strict server-side pricing map (in paise)
         const PRICING_MODEL = {
-            '50': 4900,
-            '250': 19900,
-            '600': 39900,
+            '50': 3900,
+            '250': 12900,
+            '600': 24900,
             '1000': 49900,
             'starter': 4900,
             'core': 19900,
             'plus': 49900,
-            // Fallbacks for direct numeric references used in ShopModal currently
+            '39': 3900,
+            '129': 12900,
+            '249': 24900,
             '49': 4900,
             '199': 19900,
-            '399': 39900,
             '499': 49900
         };
 
@@ -50,7 +75,10 @@ export async function onRequestPost({ request, env }) {
             body: JSON.stringify({
                 amount: amount,
                 currency: "INR",
-                receipt: `order_rcptid_${Date.now()}`
+                receipt: `order_rcptid_${Date.now()}`,
+                notes: {
+                    user_id: userId
+                }
             })
         });
 

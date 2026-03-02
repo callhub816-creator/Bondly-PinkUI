@@ -102,28 +102,29 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "Order is not paid" }), { status: 400 });
         }
 
-        // 5. 🧮 CALCULATE ASSETS (Strict Price Mapping from constants.ts)
+        // 5. 🧮 CALCULATE ASSETS (Aligned with constants.ts)
         let heartsToAdd = 0;
         let setTier = null;
 
-        if (amountPaid === 4900) {
-            // Either Starter Pass (Plan) or Starter Spark (Hearts)
-            // For simplicity, we'll check if they were buying a plan based on current hearts or just give both
+        if (amountPaid === 3900) { // ₹39
+            heartsToAdd = 50;
+        }
+        else if (amountPaid === 12900) { // ₹129
+            heartsToAdd = 250;
+        }
+        else if (amountPaid === 24900) { // ₹249
+            heartsToAdd = 600;
+        }
+        else if (amountPaid === 4900) { // ₹49 (Starter Plan)
             heartsToAdd = 50;
             setTier = 'STARTER';
         }
-        else if (amountPaid === 19900) {
-            // Core Connection (Plan) or Bonding Pack (Hearts)
+        else if (amountPaid === 19900) { // ₹199 (Core Plan)
             heartsToAdd = 250;
             setTier = 'CORE';
         }
-        else if (amountPaid === 39900) {
-            // Pro Pack (Hearts)
-            heartsToAdd = 600;
-        }
-        else if (amountPaid === 49900) {
-            // Ultra Pass (Plan)
-            heartsToAdd = 1000; // Bonus hearts for Ultra
+        else if (amountPaid === 49900) { // ₹499 (Plus Plan or 1000 Hearts Pack)
+            heartsToAdd = 1000;
             setTier = 'PLUS';
         }
         else {
