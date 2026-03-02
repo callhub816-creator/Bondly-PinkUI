@@ -168,6 +168,16 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
         let conversionSuffix = "";
 
+        // 📊 FETCH MESSAGE COUNTS (Required for both Limits and Emotional Strategy)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const [dailyMsgRow, lifetimeMsgRow] = await Promise.all([
+            env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?").bind(userId, twentyFourHoursAgo).first(),
+            env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user'").bind(userId).first()
+        ]);
+
+        const msgCount = dailyMsgRow?.count || 0;
+        const lifetimeCount = lifetimeMsgRow?.count || 0;
+
         // 🛡️ SECURITY WALL: PREMIUM PERSONA & VOICE BYPASS PREVENTION
         const numericChatId = parseInt(chatId);
         if (currentPlan === 'free') {
@@ -177,17 +187,6 @@ export async function onRequestPost({ request, env, waitUntil }) {
                     .bind(crypto.randomUUID(), userId, 'security_breach_persona', request.headers.get("cf-connecting-ip"), JSON.stringify({ attemptedChatId: chatId }), new Date().toISOString()).run();
                 return new Response(JSON.stringify({ error: "Forbidden: Premium Persona requires active subscription." }), { status: 403 });
             }
-
-            // 🛑 DAILY MESSAGE LIMIT (Free Plan)
-            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-            const [dailyMsgRow, lifetimeMsgRow] = await Promise.all([
-                env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user' AND created_at >= ?").bind(userId, twentyFourHoursAgo).first(),
-                env.DB.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND role = 'user'").bind(userId).first()
-            ]);
-
-            const msgCount = dailyMsgRow?.count || 0;
-            const lifetimeCount = lifetimeMsgRow?.count || 0;
 
             if (msgCount >= 10) {
                 return new Response(JSON.stringify({ error: "Daily capacity reached. Upgrade to extend session capacity." }), { status: 429 });
