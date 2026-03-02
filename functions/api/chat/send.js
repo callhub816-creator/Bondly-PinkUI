@@ -114,7 +114,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
         // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory + Subscription)
         const [userRow, subRow] = await Promise.all([
-            env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT username, display_name, long_term_memory, user_preferences FROM users WHERE id = ?").bind(userId).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
         ]);
 
@@ -233,11 +233,10 @@ export async function onRequestPost({ request, env, waitUntil }) {
             }
         }
 
-        const userProfile = JSON.parse("{}");
-        const userName = userProfile.nickname || userProfile.displayName || "User";
-        const longTermMemory = userProfile.long_term_memory || "User's general interests and past conversations.";
-        const userPreferences = userProfile.user_preferences || "User's communication style and preferences.";
-        const bondLevel = userProfile.bond_level || 1;
+        const userName = userRow.display_name || userRow.username || "User";
+        const longTermMemory = userRow.long_term_memory || "User's general interests and past conversations.";
+        const userPreferences = userRow.user_preferences || "User's communication style and preferences.";
+        const bondLevel = 1; // Simplified for now
 
         // 3. ✨ ATOMIC UPDATE (Deduct Hearts from WALLET)
         const heartsToDeduct = 1;
@@ -394,6 +393,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
         HYPER-ADAPTIVE SELF-LEARNING:
         - PERSISTENT MEMORY: ${longTermMemory}
         - USER PREFERENCES: ${userPreferences}
+        
+        MANDATORY UPDATES (Internal Learning):
+        - If you learn a new FACT about the user (e.g. name, pets, work): End your response with [FACT: <fact>].
+        - If you learn a PREFERENCE (e.g. likes jokes, romantic tone): End with [PREF: <preference>].
+        - THIS IS HIDDEN FROM USER. DON'T MENTION IT IN CONVERSATION.
         `;
 
         let llmError = null;
@@ -425,38 +429,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
                         replyText = parts[1].trim();
                     }
 
-                    // 2. 🧠 ADAPTIVE LEARNING EXTRACTION
-                    let finalReply = replyText;
-                    let newMemory = longTermMemory;
-                    let newPrefs = userPreferences;
-                    let didLearn = false;
-
-                    // Extract Facts
-                    if (finalReply.includes("[FACT:")) {
-                        const parts = finalReply.split("[FACT:");
-                        finalReply = parts[0].trim();
-                        const fact = parts[1].split("]")[0].trim();
-                        newMemory = (newMemory + " | " + fact).slice(-1500);
-                        didLearn = true;
-                    }
-
-                    // Extract Preferences
-                    if (finalReply.includes("[PREF:")) {
-                        const parts = finalReply.split("[PREF:");
-                        if (finalReply.includes("[FACT:")) { // If both tags exist in some order
-                            finalReply = finalReply.split("[PREF:")[0].trim();
-                        } else {
-                            finalReply = parts[0].trim();
-                        }
-                        const pref = parts[1].split("]")[0].trim();
-                        newPrefs = (newPrefs + ", " + pref).slice(-500);
-                        didLearn = true;
-                    }
-
-                    if (didLearn) {
-                        // Profile update skipped per schema
-                    }
-                    aiReply = finalReply + conversionSuffix;
+                    // Clean up response if it has thought tags
+                    aiReply = replyText.split("</thought>").pop().trim() + conversionSuffix;
                 } else {
                     llmError = "AI Engine is temporarily unavailable. Please try again.";
                     console.error("DEBUG [SambaNova Failure]:", data.error?.message || llmRes.statusText);
@@ -470,16 +444,45 @@ export async function onRequestPost({ request, env, waitUntil }) {
             console.error("DEBUG: SAMBANOVA_API_KEY is not defined.");
         }
 
-        // 🎙️ ELEVENLABS TTS was here
+        // 📊 POST-RESPONSE: SILENT MEMORY EXTRACTION & CLEANUP
+        let cleanedReply = aiReply;
+        try {
+            const factMatches = cleanedReply.match(/\[FACT: (.*?)\]/g);
+            const prefMatches = cleanedReply.match(/\[PREF: (.*?)\]/g);
 
-        // Save AI Msg
+            if (factMatches || prefMatches) {
+                let updatedFact = longTermMemory;
+                let updatedPref = userPreferences;
+
+                factMatches?.forEach(m => {
+                    const fact = m.replace(/\[FACT: |\]/g, "");
+                    if (!updatedFact.includes(fact)) updatedFact += ` ${fact}.`;
+                    cleanedReply = cleanedReply.replace(m, "");
+                });
+
+                prefMatches?.forEach(m => {
+                    const pref = m.replace(/\[PREF: |\]/g, "");
+                    if (!updatedPref.includes(pref)) updatedPref += ` ${pref}.`;
+                    cleanedReply = cleanedReply.replace(m, "");
+                });
+
+                // Limit memory string lengths
+                updatedFact = updatedFact.slice(-1000);
+                updatedPref = updatedPref.slice(-500);
+
+                await env.DB.prepare("UPDATE users SET long_term_memory = ?, user_preferences = ?, updated_at = ? WHERE id = ?")
+                    .bind(updatedFact.trim(), updatedPref.trim(), new Date().toISOString(), userId).run();
+            }
+            cleanedReply = cleanedReply.replace(/<\/?[^>]+(>|$)/g, "").trim(); // Final strip of any lingering tags
+        } catch (memErr) {
+            console.error("Memory Processing Error:", memErr);
+        }
+
+        // Save AI Msg (Clean Version)
         const aiMsgId = crypto.randomUUID();
         const aiNowIso = new Date().toISOString();
-        const metadata = null;
-
-        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)")
-            .bind(aiMsgId, chatId, userId, 'assistant', aiReply, metadata, aiNowIso).run();
-
+        await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
+            .bind(aiMsgId, chatId, userId, 'assistant', cleanedReply, aiNowIso).run();
 
         // 🏗️ D1 HOUSEKEEPING (Lazy Archival to prevent exhaustion)
         // 5% chance per message to trigger background cleanup of messages > 30 days
@@ -497,6 +500,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
                     console.error("Housekeeping Error:", e);
                 }
             };
+            // Run in background if platform supports waitUntil
             if (typeof waitUntil === 'function') {
                 waitUntil(housekeeping());
             } else {
@@ -508,7 +512,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
             success: true,
             aiMessage: {
                 id: aiMsgId,
-                body: aiReply,
+                body: cleanedReply,
                 created_at: aiNowIso,
                 audioUrl: null,
                 error: llmError
