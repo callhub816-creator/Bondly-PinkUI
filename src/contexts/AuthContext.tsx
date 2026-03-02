@@ -323,7 +323,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         },
         prefill: {
-          name: user?.displayName || 'Rajesh Madhukar Navsagar',
+          name: user?.displayName || 'User',
           email: 'support@bondly.online'
         },
         notes: {

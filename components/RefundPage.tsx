@@ -68,7 +68,7 @@ const RefundPage: React.FC<PageProps> = ({ onBack }) => {
                             Email: support@bondly.online
                         </a>
                         <p className="text-sm opacity-80">
-                            <strong>Platform Owner:</strong> Rajesh Madhukar Navsagar<br />
+                            <strong>Platform Owner:</strong> Bondly Administration<br />
                             <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047
                         </p>
                     </div>

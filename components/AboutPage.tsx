@@ -69,7 +69,7 @@ const AboutPage: React.FC<PageProps> = ({ onBack }) => {
             <Mail size={18} /> support@bondly.online
           </a>
           <p className="text-[11px] opacity-70">
-            <strong>Platform Owner:</strong> Rajesh Madhukar Navsagar<br />
+            <strong>Platform Owner:</strong> Bondly Administration<br />
             <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047
           </p>
         </section>

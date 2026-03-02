@@ -97,7 +97,7 @@ const TermsPage: React.FC<PageProps> = ({ onBack }) => {
             support@bondly.online
           </a>
           <p className="text-sm opacity-80 mt-4">
-            <strong>Platform Owner:</strong> Rajesh Madhukar Navsagar<br />
+            <strong>Platform Owner:</strong> Bondly Admin Team<br />
             <strong>Address:</strong> Lohegaon, Pune, Maharashtra, India - 411047
           </p>
         </section>
