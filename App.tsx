@@ -385,7 +385,7 @@ const AppContent: React.FC = () => {
             <Sparkles className="absolute top-4 right-10 md:top-6 md:right-12 text-[#B28DFF] opacity-60 animate-pulse delay-300 w-4 h-4 md:w-5 md:h-5" />
             <h1 className="font-serif-display font-bold text-[#4A2040] mb-2 md:mb-6 leading-[1.15] tracking-tight drop-shadow-sm text-[clamp(28px,5vw,48px)]">
               A Connection That <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D53F8C] to-[#9F7AEA]">Stays With You.</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D53F8C] to-[#9F7AEA]">Bondly AI Online</span>
             </h1>
             <p className="text-[#5e3a58]/90 font-medium max-w-[280px] md:max-w-lg mb-3 md:mb-6 leading-relaxed text-[clamp(15px,3vw,20px)]">
               A thoughtfully designed AI chat experience for engaging, expressive, and creative conversations.
