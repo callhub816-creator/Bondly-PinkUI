@@ -154,7 +154,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       const res = await authFetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, chatId: persona.id })
+        body: JSON.stringify({
+          message: text,
+          chatId: persona.id,
+          userName: profile.nickname
+        })
       });
 
       const data = await res.json();

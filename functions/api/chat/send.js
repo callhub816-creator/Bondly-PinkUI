@@ -71,7 +71,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
         // 2. 🛡️ INPUT VALIDATION (Strict)
         const bodyText = await request.text();
         if (!bodyText) return new Response(JSON.stringify({ error: "Empty body" }), { status: 400 });
-        const { message, chatId } = JSON.parse(bodyText);
+        const { message, chatId, userName: passedUserName } = JSON.parse(bodyText);
 
         // a. Strict Type Check
         if (typeof message !== 'string') return new Response(JSON.stringify({ error: "Invalid message type" }), { status: 400 });
@@ -251,7 +251,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
             }
         }
 
-        const userName = userRow.display_name || userRow.username || "User";
+        const userName = passedUserName || userRow.display_name || userRow.username || "User";
         const longTermMemory = userRow.long_term_memory || "User's general interests and past conversations.";
         const userPreferences = userRow.user_preferences || "User's communication style and preferences.";
         const bondLevel = 1; // Simplified for now
@@ -311,7 +311,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
         keys = keys.filter(k => k);
 
         const selectedKey = keys[Math.floor(Math.random() * keys.length)];
-        let aiReply = cachedReply || "Suno na, mera network thoda slow hai... Ek baar phir se bolo?";
+        let aiReply = cachedReply || "Suno na, mera network connection thoda slow hai... Kya tum ek baar phir se bologe? ❤️";
 
         // 🏗️ DYNAMIC PERSONALITY & VOICE MAPPING (The 'Persona Bible')
         const personas = {
@@ -475,9 +475,9 @@ export async function onRequestPost({ request, env, waitUntil }) {
                 llmError = "Connection to AI Engine failed.";
                 console.error("DEBUG [SambaNova Connection Error]:", err.message);
             }
-        } else {
-            llmError = "AI Configuration missing. Please contact support.";
-            console.error("DEBUG: SAMBANOVA_API_KEY is not defined.");
+        } else if (!cachedReply) {
+            llmError = "AI Configuration or API keys are temporarily unavailable. System is in fallback mode.";
+            console.error("DEBUG: SAMBANOVA_API_KEY is missing or invalid.");
         }
 
         // 📊 POST-RESPONSE: SILENT MEMORY EXTRACTION & CLEANUP
