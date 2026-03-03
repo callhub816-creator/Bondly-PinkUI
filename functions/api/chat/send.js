@@ -310,7 +310,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
         });
         keys = keys.filter(k => k);
 
-        const selectedKey = keys[Math.floor(Math.random() * keys.length)];
+        // Shuffle keys to distribute load
+        const shuffledKeys = keys.sort(() => Math.random() - 0.5);
         let aiReply = cachedReply || "Suno na, mera network connection thoda slow hai... Kya tum ek baar phir se bologe? ❤️";
 
         // 🏗️ DYNAMIC PERSONALITY & VOICE MAPPING (The 'Persona Bible')
@@ -437,47 +438,53 @@ export async function onRequestPost({ request, env, waitUntil }) {
         `;
 
         let llmError = null;
-        if (selectedKey && !cachedReply) {
-            try {
-                const llmRes = await fetch("https://api.sambanova.ai/v1/chat/completions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${selectedKey}` },
-                    body: JSON.stringify({
-                        model: "Meta-Llama-3.3-70B-Instruct",
-                        messages: [
-                            { role: "system", content: SYSTEM_PROMPT },
-                            ...historyContext,
-                            { role: "user", content: userMsgBody }
-                        ],
-                        max_tokens: maxLlmTokens,
-                        temperature: 0.8
-                    })
-                });
+        let success = false;
 
-                const data = await llmRes.json();
-                if (llmRes.ok) {
-                    let rawContent = data.choices?.[0]?.message?.content || aiReply;
+        if (shuffledKeys.length > 0 && !cachedReply) {
+            for (const key of shuffledKeys) {
+                try {
+                    const llmRes = await fetch("https://api.sambanova.ai/v1/chat/completions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+                        body: JSON.stringify({
+                            model: "Meta-Llama-3.3-70B-Instruct",
+                            messages: [
+                                { role: "system", content: SYSTEM_PROMPT },
+                                ...historyContext,
+                                { role: "user", content: userMsgBody }
+                            ],
+                            max_tokens: maxLlmTokens,
+                            temperature: 0.8
+                        })
+                    });
 
-                    // 1. Separate Thought from Reply
-                    let replyText = rawContent;
-                    if (rawContent.includes("</thought>")) {
-                        const parts = rawContent.split("</thought>");
-                        replyText = parts[1].trim();
+                    const data = await llmRes.json();
+                    if (llmRes.ok) {
+                        let rawContent = data.choices?.[0]?.message?.content || aiReply;
+                        let replyText = rawContent;
+                        if (rawContent.includes("</thought>")) {
+                            const parts = rawContent.split("</thought>");
+                            replyText = parts[1].trim();
+                        }
+                        aiReply = replyText.split("</thought>").pop().trim() + conversionSuffix;
+                        success = true;
+                        break; // Exit loop on success
+                    } else {
+                        console.error(`DEBUG [Key Failed]:`, data.error?.message || llmRes.statusText);
+                        // Continue to next key
                     }
-
-                    // Clean up response if it has thought tags
-                    aiReply = replyText.split("</thought>").pop().trim() + conversionSuffix;
-                } else {
-                    llmError = "AI Engine is temporarily unavailable. Please try again.";
-                    console.error("DEBUG [SambaNova Failure]:", data.error?.message || llmRes.statusText);
+                } catch (err) {
+                    console.error(`DEBUG [Connection Failed]:`, err.message);
+                    // Continue to next key
                 }
-            } catch (err) {
-                llmError = "Connection to AI Engine failed.";
-                console.error("DEBUG [SambaNova Connection Error]:", err.message);
+            }
+
+            if (!success) {
+                llmError = "AI Engine is temporarily overloaded. All available lines are busy. Please try in 10-20 seconds.";
             }
         } else if (!cachedReply) {
-            llmError = "AI Configuration or API keys are temporarily unavailable. System is in fallback mode.";
-            console.error("DEBUG: SAMBANOVA_API_KEY is missing or invalid.");
+            llmError = "AI Configuration or API keys are missing. System is in fallback mode.";
+            console.error("DEBUG: No API keys found in environment.");
         }
 
         // 📊 POST-RESPONSE: SILENT MEMORY EXTRACTION & CLEANUP
