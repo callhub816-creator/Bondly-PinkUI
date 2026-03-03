@@ -186,199 +186,205 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col ${isDarkMode ? 'bg-[#0B0E14] text-white' : 'bg-[#FDF2F8] text-[#4A2040]'}`}>
-      <div className={`fixed inset-0 z-50 flex flex-col ${isDarkMode ? 'bg-[#0B0E14] text-white' : 'bg-[#FDF2F8] text-[#4A2040]'} sm:max-w-[640px] sm:mx-auto`}>
-        {/* Header */}
-        <header className={`px-4 py-3 flex items-center justify-between border-b ${isDarkMode ? 'bg-[#0B0E14] border-white/5' : 'bg-white border-pink-100 shadow-sm'} z-20`}>
+    <div className="fixed inset-0 z-50 flex flex-col sm:max-w-[640px] sm:mx-auto overflow-hidden bg-black text-white">
+      {/* 📸 FULL-SCREEN AVATAR BACKGROUND */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center transition-transform duration-[20000ms] hover:scale-110"
+        style={{
+          backgroundImage: `url(${persona.avatarUrl})`,
+        }}
+      />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/60 via-black/30 to-black/80 backdrop-blur-[2px]" />
+
+      {/* Header */}
+      <header className="relative px-4 py-3 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-md z-20">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+            <ArrowLeft size={20} />
+          </button>
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
-              <ArrowLeft size={20} />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <img src={persona.avatarUrl} alt={persona.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-pink-500/20" />
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-[#0B0E14] rounded-full"></div>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-[15px] leading-tight flex items-center gap-1.5">
-                  {persona.name}
-                  <span className="text-[10px] px-1.5 py-0.5 bg-pink-500/10 text-pink-500 rounded-md uppercase font-black tracking-tighter">
-                    {currentMood}
-                  </span>
+            <div className="relative">
+              <img src={persona.avatarUrl} alt={persona.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-pink-500/20" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-[#0B0E14] rounded-full"></div>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-[15px] leading-tight flex items-center gap-1.5">
+                {persona.name}
+                <span className="text-[10px] px-1.5 py-0.5 bg-pink-500/10 text-pink-500 rounded-md uppercase font-black tracking-tighter">
+                  {currentMood}
                 </span>
-                {/* Relationship Bar */}
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="w-20 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-1000 ${level.color}`}
-                      style={{ width: `${progressPercent}%` }}
-                    ></div>
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest opacity-40">{level.label}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <WalletWidget isDarkMode={isDarkMode} onOpenShop={onOpenShop} />
-            <button
-              onClick={onStartCall}
-              className={`p-2.5 rounded-full transition-all active:scale-95 border ${isDarkMode
-                ? 'bg-white/10 text-pink-400 border-white/20 hover:bg-white/20'
-                : 'bg-pink-50 text-pink-500 border-pink-200 hover:bg-pink-100 shadow-sm'
-                }`}
-            >
-              <Phone size={20} />
-            </button>
-          </div>
-        </header>
-
-        {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl shadow-sm ${msg.sender === 'user'
-                ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-br-none'
-                : msg.isError
-                  ? 'bg-red-50 border border-red-200 text-red-600 text-xs'
-                  : isDarkMode ? 'bg-white/10 text-white rounded-bl-none' : 'bg-white text-[#4A2040] rounded-bl-none border border-pink-50'
-                }`}>
-                {msg.isLocked ? (
-                  <div className="flex flex-col items-center gap-2 py-4 px-2">
-                    <div className="p-3 bg-pink-500/20 rounded-full animate-pulse">
-                      <LockIcon size={24} className="text-pink-500" />
-                    </div>
-                    <p className="text-[12px] font-bold text-center opacity-80 leading-snug">
-                      "{persona.name} sent a private thought..."
-                    </p>
-                    <button
-                      onClick={() => handleUnlockMessage(msg.id)}
-                      className="mt-2 px-4 py-2 bg-pink-500 text-white rounded-xl text-[11px] font-black shadow-lg shadow-pink-500/20 active:scale-95 transition-all flex items-center gap-2"
-                    >
-                      <Heart size={12} fill="white" /> UNLOCK (5 HEARTS)
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {msg.text}
-                    {msg.audioUrl && (
-                      <div className="mt-3 pt-3 border-t border-white/10">
-                        <audio controls src={msg.audioUrl} className="h-8 w-full max-w-[200px]" />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <span className="text-[9px] opacity-40 mt-1 px-1">
-                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
+              {/* Relationship Bar */}
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-20 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-1000 ${level.color}`}
+                    style={{ width: `${progressPercent}%` }}
+                  ></div>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-40">{level.label}</span>
+              </div>
             </div>
-          ))}
-          {isTyping && (
-            <div className="flex gap-1 p-2">
-              <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          )}
+          </div>
         </div>
+        <div className="flex items-center gap-3">
+          <WalletWidget isDarkMode={isDarkMode} onOpenShop={onOpenShop} />
+          <button
+            onClick={onStartCall}
+            className={`p-2.5 rounded-full transition-all active:scale-95 border ${isDarkMode
+              ? 'bg-white/10 text-pink-400 border-white/20 hover:bg-white/20'
+              : 'bg-pink-50 text-pink-500 border-pink-200 hover:bg-pink-100 shadow-sm'
+              }`}
+          >
+            <Phone size={20} />
+          </button>
+        </div>
+      </header>
 
-        {/* Input Section */}
-        <footer className={`relative p-4 pb-8 border-t transition-colors ${isDarkMode ? 'bg-[#0B0E14] border-white/5' : 'bg-white border-gray-100'
-          }`}>
+      {/* Messages */}
+      <div ref={scrollRef} className="relative flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar z-10">
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-xl ${msg.sender === 'user'
+              ? 'bg-gradient-to-br from-pink-500/90 to-purple-600/90 text-white rounded-br-none border border-white/20'
+              : msg.isError
+                ? 'bg-red-500/80 border border-red-200 text-white text-xs backdrop-blur-md'
+                : 'bg-white/10 backdrop-blur-xl text-white rounded-bl-none border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]'
+              }`}>
+              {msg.isLocked ? (
+                <div className="flex flex-col items-center gap-2 py-4 px-2">
+                  <div className="p-3 bg-pink-500/20 rounded-full animate-pulse">
+                    <LockIcon size={24} className="text-pink-500" />
+                  </div>
+                  <p className="text-[12px] font-bold text-center opacity-80 leading-snug">
+                    "{persona.name} sent a private thought..."
+                  </p>
+                  <button
+                    onClick={() => handleUnlockMessage(msg.id)}
+                    className="mt-2 px-4 py-2 bg-pink-500 text-white rounded-xl text-[11px] font-black shadow-lg shadow-pink-500/20 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <Heart size={12} fill="white" /> UNLOCK (5 HEARTS)
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {msg.text}
+                  {msg.audioUrl && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <audio controls src={msg.audioUrl} className="h-8 w-full max-w-[200px]" />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <span className="text-[9px] opacity-40 mt-1 px-1">
+              {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        ))}
+        {isTyping && (
+          <div className="flex gap-1 p-2">
+            <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        )}
+      </div>
 
-          {isGiftOpen && (
-            <GiftSelector
-              isDarkMode={isDarkMode}
-              companionId={persona.id}
-              companionName={persona.name}
-              onClose={() => setIsGiftOpen(false)}
-              onGiftSent={(name, icon) => {
-                const giftText = `*Gifts ${name} ${icon}*`;
-                handleSend(giftText);
+      {/* Input Section */}
+      <footer className="relative p-4 pb-8 border-t border-white/10 bg-black/40 backdrop-blur-2xl z-20 transition-colors">
+
+        {isGiftOpen && (
+          <GiftSelector
+            isDarkMode={isDarkMode}
+            companionId={persona.id}
+            companionName={persona.name}
+            onClose={() => setIsGiftOpen(false)}
+            onGiftSent={(name, icon) => {
+              const giftText = `*Gifts ${name} ${icon}*`;
+              handleSend(giftText);
+            }}
+          />
+        )}
+
+        <div className="flex items-center gap-3 max-w-2xl mx-auto">
+          {/* Action Button: Gift */}
+          <button
+            onClick={() => setIsGiftOpen(!isGiftOpen)}
+            className={`p-3 rounded-2xl transition-all duration-300 active:scale-90 ${isGiftOpen
+              ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
+              : isDarkMode
+                ? 'bg-white/5 text-pink-400 border border-white/10 hover:bg-white/10'
+                : 'bg-white text-pink-500 border border-pink-100 shadow-sm hover:border-pink-300'
+              }`}
+          >
+            <GiftIcon size={22} strokeWidth={2.5} />
+          </button>
+
+          {/* Main Input Box (NUCLEAR FOCUS FIX) */}
+          <div className={`flex-1 flex items-center px-5 py-3 rounded-[24px] border-2 transition-all duration-300 ${isDarkMode
+            ? 'bg-white/5 border-white/10 focus-within:border-pink-500/50'
+            : 'bg-white border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
+            }`}>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={`Write to ${persona.name}...`}
+              className="flex-1 bg-transparent text-[15px] font-medium placeholder:opacity-40 p-0 resize-none min-h-[22px] max-h-[120px] py-1"
+              style={{
+                color: isDarkMode ? 'white' : '#4A2040',
+                outline: 'none',
+                border: 'none',
+                boxShadow: 'none',
+                overflowY: (textareaRef.current?.scrollHeight || 0) > 120 ? 'auto' : 'hidden'
               }}
             />
-          )}
-
-          <div className="flex items-center gap-3 max-w-2xl mx-auto">
-            {/* Action Button: Gift */}
-            <button
-              onClick={() => setIsGiftOpen(!isGiftOpen)}
-              className={`p-3 rounded-2xl transition-all duration-300 active:scale-90 ${isGiftOpen
-                ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
-                : isDarkMode
-                  ? 'bg-white/5 text-pink-400 border border-white/10 hover:bg-white/10'
-                  : 'bg-white text-pink-500 border border-pink-100 shadow-sm hover:border-pink-300'
-                }`}
-            >
-              <GiftIcon size={22} strokeWidth={2.5} />
-            </button>
-
-            {/* Main Input Box (NUCLEAR FOCUS FIX) */}
-            <div className={`flex-1 flex items-center px-5 py-3 rounded-[24px] border-2 transition-all duration-300 ${isDarkMode
-              ? 'bg-white/5 border-white/10 focus-within:border-pink-500/50'
-              : 'bg-white border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
-              }`}>
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={`Write to ${persona.name}...`}
-                className="flex-1 bg-transparent text-[15px] font-medium placeholder:opacity-40 p-0 resize-none min-h-[22px] max-h-[120px] py-1"
-                style={{
-                  color: isDarkMode ? 'white' : '#4A2040',
-                  outline: 'none',
-                  border: 'none',
-                  boxShadow: 'none',
-                  overflowY: (textareaRef.current?.scrollHeight || 0) > 120 ? 'auto' : 'hidden'
-                }}
-              />
-            </div>
-
-            {/* Action Button: Send */}
-            <button
-              onClick={() => handleSend()}
-              disabled={!inputText.trim() || isTyping}
-              className={`p-3.5 rounded-2xl transition-all duration-300 active:scale-90 shadow-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-[#FF9ACB] to-[#B28DFF] text-white ${!inputText.trim() || isTyping
-                ? 'opacity-50 cursor-not-allowed shadow-none grayscale-[0.3]'
-                : 'shadow-pink-500/30 ring-2 ring-pink-200/50 hover:scale-105'
-                }`}
-            >
-              <Send size={22} fill="currentColor" strokeWidth={2.5} />
-            </button>
           </div>
 
-          {/* 🔥 Impulse Buy (Low Hearts Hook) */}
-          {(profile.hearts ?? 0) <= 2 && profile.subscription === 'free' && (
-            <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-gradient-to-r from-yellow-100 to-pink-100 dark:from-yellow-900/40 dark:to-pink-900/40 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700/50 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-yellow-400 rounded-xl shadow-sm">
-                    <Sparkles size={18} className="text-black" />
-                  </div>
-                  <div>
-                    <h4 className="text-[13px] font-bold">Low on Credits? 💔</h4>
-                    <p className="text-[10px] opacity-70 font-semibold uppercase tracking-tight">Welcome Offer: 50 Credits for ₹49</p>
-                  </div>
+          {/* Action Button: Send */}
+          <button
+            onClick={() => handleSend()}
+            disabled={!inputText.trim() || isTyping}
+            className={`p-3.5 rounded-2xl transition-all duration-300 active:scale-90 shadow-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-[#FF9ACB] to-[#B28DFF] text-white ${!inputText.trim() || isTyping
+              ? 'opacity-50 cursor-not-allowed shadow-none grayscale-[0.3]'
+              : 'shadow-pink-500/30 ring-2 ring-pink-200/50 hover:scale-105'
+              }`}
+          >
+            <Send size={22} fill="currentColor" strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* 🔥 Impulse Buy (Low Hearts Hook) */}
+        {(profile.hearts ?? 0) <= 2 && profile.subscription === 'free' && (
+          <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-gradient-to-r from-yellow-100 to-pink-100 dark:from-yellow-900/40 dark:to-pink-900/40 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700/50 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-400 rounded-xl shadow-sm">
+                  <Sparkles size={18} className="text-black" />
                 </div>
-                <button
-                  onClick={onOpenShop}
-                  className="px-4 py-2 bg-black text-white dark:bg-pink-500 text-[11px] font-black rounded-xl active:scale-95 transition-all shadow-lg"
-                >
-                  GET NOW
-                </button>
+                <div>
+                  <h4 className="text-[13px] font-bold">Low on Credits? 💔</h4>
+                  <p className="text-[10px] opacity-70 font-semibold uppercase tracking-tight">Welcome Offer: 50 Credits for ₹49</p>
+                </div>
               </div>
+              <button
+                onClick={onOpenShop}
+                className="px-4 py-2 bg-black text-white dark:bg-pink-500 text-[11px] font-black rounded-xl active:scale-95 transition-all shadow-lg"
+              >
+                GET NOW
+              </button>
             </div>
-          )}
-        </footer>
-      </div>
+          </div>
+        )}
+      </footer>
     </div>
   );
 };
