@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Persona } from '../types';
-import { ArrowLeft, Phone, Mic, Send, Heart, X, Sparkles, RefreshCw, Lock as LockIcon, Gift as GiftIcon } from 'lucide-react';
+import { ArrowLeft, Phone, Mic, Send, Heart, X, Sparkles, RefreshCw, Lock as LockIcon, Gift as GiftIcon, Mail } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useGating } from '../src/hooks/useGating';
@@ -102,10 +102,39 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       return;
     }
 
-    // SPEND HEART LOGIC (Free users only)
+    // SPEND HEART LOGIC (Free users only) - INJECT LOVE LETTER ON ZERO HEARTS
+    if (profile.subscription === 'free' && (profile.hearts || 0) < 1) {
+      // 1. Add User Message
+      const newUserMsg: Message = { id: Date.now().toString(), sender: 'user', text, timestamp: new Date() };
+      setMessages(prev => [...prev, newUserMsg]);
+      if (!resendText) setInputText('');
+
+      // 2. Trigger "Typing" for drama
+      setIsTyping(true);
+
+      setTimeout(() => {
+        setIsTyping(false);
+        const loveLetterMsg: Message = {
+          id: 'love-letter-' + Date.now(),
+          sender: 'model',
+          text: "Maine tumhare liye kuch bohot special likha hai... padhoge? 💌",
+          timestamp: new Date(),
+          isLocked: true
+        };
+        setMessages(prev => {
+          const updated = [...prev, loveLetterMsg];
+          storage.saveMessage(persona.id, { ...loveLetterMsg, timestamp: loveLetterMsg.timestamp.toISOString() });
+          return updated;
+        });
+        showNotification(`${persona.name} shared a secret with you... ❤️`, 'hearts');
+      }, 1500);
+      return;
+    }
+
     if (profile.subscription === 'free') {
       const success = spendHearts(1);
       if (!success) {
+        // Fallback (redundant with check above but safe)
         showNotification("Not enough Hearts! ❤️", 'hearts');
         onOpenShop();
         return;
@@ -158,7 +187,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       });
 
     } catch (err: any) {
-      setMessages(prev => [...prev, { id: 'err', sender: 'model', text: err.message, timestamp: new Date(), isError: true }]);
+      if (err.message.includes("hearts") || err.message.includes("429")) {
+        const loveLetterMsg: Message = {
+          id: 'love-letter-' + Date.now(),
+          sender: 'model',
+          text: "Maine tumhare liye kuch bohot special likha hai... padhoge? 💌",
+          timestamp: new Date(),
+          isLocked: true
+        };
+        setMessages(prev => [...prev, loveLetterMsg]);
+      } else {
+        setMessages(prev => [...prev, { id: 'err', sender: 'model', text: err.message, timestamp: new Date(), isError: true }]);
+      }
     } finally {
       setIsTyping(false);
     }
@@ -252,18 +292,23 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
                 : 'bg-white/10 backdrop-blur-xl text-white rounded-bl-none border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]'
               }`}>
               {msg.isLocked ? (
-                <div className="flex flex-col items-center gap-2 py-4 px-2">
-                  <div className="p-3 bg-pink-500/20 rounded-full animate-pulse">
-                    <LockIcon size={24} className="text-pink-500" />
+                <div className="flex flex-col items-center gap-3 py-4 px-2 min-w-[200px]">
+                  <div className="relative">
+                    <div className="p-4 bg-pink-500/20 rounded-full animate-pulse">
+                      <Mail size={32} className="text-pink-500" />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 p-1.5 bg-pink-500 rounded-full ring-2 ring-white/20">
+                      <LockIcon size={12} className="text-white" />
+                    </div>
                   </div>
-                  <p className="text-[12px] font-bold text-center opacity-80 leading-snug">
-                    "{persona.name} sent a private thought..."
+                  <p className="text-[13px] font-bold text-center text-pink-100 leading-snug max-w-[180px]">
+                    {msg.text || `"${persona.name} sent a private thought..."`}
                   </p>
                   <button
                     onClick={() => handleUnlockMessage(msg.id)}
-                    className="mt-2 px-4 py-2 bg-pink-500 text-white rounded-xl text-[11px] font-black shadow-lg shadow-pink-500/20 active:scale-95 transition-all flex items-center gap-2"
+                    className="mt-2 w-full px-5 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl text-[12px] font-black shadow-xl shadow-pink-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/10"
                   >
-                    <Heart size={12} fill="white" /> UNLOCK (5 HEARTS)
+                    <Sparkles size={14} fill="white" /> OPEN LOVE LETTER
                   </button>
                 </div>
               ) : (
