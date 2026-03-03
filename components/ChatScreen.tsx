@@ -177,7 +177,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
         const modelMsg: Message = {
           id: aiMsgData.id || Date.now().toString(),
           sender: 'model',
-          text: aiMsgData.body,
+          text: aiMsgData.body.replace(/\*/g, ''),
           timestamp: new Date(),
           isLocked
         };
@@ -360,7 +360,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
               ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
               : isDarkMode
                 ? 'bg-white/5 text-pink-400 border border-white/10 hover:bg-white/10'
-                : 'bg-white text-pink-500 border border-pink-100 shadow-sm hover:border-pink-300'
+                : 'bg-[#FFF0F5] text-pink-600 border border-pink-200 shadow-sm hover:bg-pink-100'
               }`}
           >
             <GiftIcon size={22} strokeWidth={2.5} />
@@ -369,7 +369,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
           {/* Main Input Box (NUCLEAR FOCUS FIX) */}
           <div className={`flex-1 flex items-center px-5 py-3 rounded-[24px] border-2 transition-all duration-300 ${isDarkMode
             ? 'bg-white/5 border-white/10 focus-within:border-pink-500/50'
-            : 'bg-white border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
+            : 'bg-[#FFF0F5] border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
             }`}>
             <textarea
               ref={textareaRef}
@@ -385,7 +385,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
               placeholder={`Write to ${persona.name}...`}
               className="flex-1 bg-transparent text-[15px] font-medium placeholder:opacity-40 p-0 resize-none min-h-[22px] max-h-[120px] py-1"
               style={{
-                color: isDarkMode ? 'white' : '#4A2040',
+                color: isDarkMode ? 'white' : '#000000',
                 outline: 'none',
                 border: 'none',
                 boxShadow: 'none',
