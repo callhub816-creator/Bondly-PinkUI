@@ -177,7 +177,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
         const modelMsg: Message = {
           id: aiMsgData.id || Date.now().toString(),
           sender: 'model',
-          text: aiMsgData.body.replace(/\*/g, ''),
+          text: aiMsgData.body.replace(/\*/g, '').replace(/\b(smiles|blushes|laughs|giggles|winks|chuckles|smirks)\b/gi, ''),
           timestamp: new Date(),
           isLocked
         };
@@ -239,7 +239,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
       {/* Header */}
       <header className="relative px-4 py-3 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-md z-20">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+          <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full transition-colors">
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-3">
@@ -267,17 +267,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-2">
           <WalletWidget isDarkMode={isDarkMode} onOpenShop={onOpenShop} />
-          <button
-            onClick={onStartCall}
-            className={`p-2.5 rounded-full transition-all active:scale-95 border ${isDarkMode
-              ? 'bg-white/10 text-pink-400 border-white/20 hover:bg-white/20'
-              : 'bg-pink-50 text-pink-500 border-pink-200 hover:bg-pink-100 shadow-sm'
-              }`}
-          >
-            <Phone size={20} />
-          </button>
         </div>
       </header>
 
@@ -369,7 +360,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ persona, onBack, onStartCall, i
           {/* Main Input Box (NUCLEAR FOCUS FIX) */}
           <div className={`flex-1 flex items-center px-5 py-3 rounded-[24px] border-2 transition-all duration-300 ${isDarkMode
             ? 'bg-white/5 border-white/10 focus-within:border-pink-500/50'
-            : 'bg-[#FFF0F5] border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_0_15px_rgba(255,105,180,0.15)]'
+            : 'bg-[#FFD1DC] border-[#FF69B4] focus-within:border-[#FF1A8C] shadow-[0_4px_20px_rgba(255,105,180,0.3)]'
             }`}>
             <textarea
               ref={textareaRef}

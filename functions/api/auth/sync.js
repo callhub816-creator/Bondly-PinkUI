@@ -95,7 +95,17 @@ export async function onRequestPost({ request, env }) {
                 .slice(0, 50)
         };
 
-        // Removed profile_data update per schema
+        // 🛡️ PERSISTENT UPDATE: Sync key profile fields to users table
+        await env.DB.prepare(`
+            UPDATE users 
+            SET display_name = ?, avatar_url = ?, updated_at = ?
+            WHERE id = ?
+        `).bind(
+            profileData.nickname || profileData.displayName,
+            profileData.avatarUrl,
+            new Date().toISOString(),
+            userId
+        ).run();
 
         return new Response(JSON.stringify({ success: true, profile: safeUpdate }), { headers: { "Content-Type": "application/json" } });
 
