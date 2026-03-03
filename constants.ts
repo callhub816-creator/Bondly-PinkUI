@@ -163,8 +163,10 @@ export const PROFILE_AVATARS = [
 ];
 
 export const GIFT_ITEMS: Gift[] = [
-  { id: 'gift_rose', name: 'Mystic Rose', icon: '🌹', price: 10, points: 50, category: 'sweet' },
-  { id: 'gift_coffee', name: 'Special Brew', icon: '☕', price: 20, points: 100, category: 'warm' },
+  { id: 'gift_chai', name: 'Adrak Wali Chai', icon: '☕', price: 5, points: 50, category: 'refresh' },
+  { id: 'gift_black_coffee', name: 'Black Coffee', icon: '☕️', price: 9, points: 100, category: 'refresh' },
+  { id: 'gift_cold_coffee', name: 'Cold Coffee', icon: '🧋', price: 25, points: 300, category: 'refresh' },
+  { id: 'gift_rose', name: 'Mystic Rose', icon: '🌹', price: 15, points: 50, category: 'sweet' },
   { id: 'gift_letter', name: 'Secret Note', icon: '💌', price: 40, points: 200, category: 'sweet' },
   { id: 'gift_chocolates', name: 'Dark Truffles', icon: '🍫', price: 60, points: 300, category: 'warm' },
   { id: 'gift_cake', name: 'Velvet Heart', icon: '🎂', price: 100, points: 500, category: 'sweet' },

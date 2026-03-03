@@ -64,7 +64,7 @@ export interface Gift {
   icon: string;
   price: number;
   points: number;
-  category: 'sweet' | 'warm' | 'elite';
+  category: 'sweet' | 'warm' | 'elite' | 'refresh';
 }
 
 export interface GatingConfig {

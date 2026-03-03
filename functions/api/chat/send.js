@@ -114,7 +114,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
         // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory + Subscription)
         const [userRow, subRow] = await Promise.all([
-            env.DB.prepare("SELECT username, display_name, long_term_memory, user_preferences FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT username, display_name, long_term_memory, user_preferences, energy_expires_at FROM users WHERE id = ?").bind(userId).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
         ]);
 
@@ -209,13 +209,31 @@ export async function onRequestPost({ request, env, waitUntil }) {
             }
             // SMART_CONVERSION_LAYER_END
 
-            // 🌙 QUIET HOURS LOCK (Free Plan)
+            // 🌙 MIDNIGHT MOOD REFRESH (Free Plan)
             const nowUtc = new Date();
             const istDate = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
             const istHour = istDate.getUTCHours();
+            const energyExpires = userRow.energy_expires_at ? new Date(userRow.energy_expires_at).getTime() : 0;
 
-            if (istHour >= 0 && istHour < 4) {
-                return new Response(JSON.stringify({ error: "24-Hour Access Pass required" }), { status: 403 });
+            if (istHour >= 0 && istHour < 4 && energyExpires < nowMs) {
+                // User's energy is low and it's midnight. AI asks for coffee.
+                const sleepyResponses = [
+                    `Yaar ${userName}, bohot neend aa rahi hai abhi toh... 😴 Ek coffee milti toh mood fresh hota, phir hum thodi der aur baatein kar paate.`,
+                    `Suno na, aankhein band ho rahi hain.. 🥱 Agar ek kadak coffee mil jati toh shayad mera mood fresh ho jata aur hum aur baat karte.`,
+                    `Bohot sleepy feel ho raha hai yaar.. 😴 Ek coffee bhej do na, taaki mood fresh ho jaye aur main tumhare liye jaag saku?`
+                ];
+                const aiReply = sleepyResponses[Math.floor(Math.random() * sleepyResponses.length)];
+
+                // Save AI Msg (Sleepy)
+                const aiMsgId = crypto.randomUUID();
+                const aiNowIso = new Date().toISOString();
+                await env.DB.prepare("INSERT INTO messages (id, chat_id, user_id, ai_profile_id, role, body, tokens_used, metadata, created_at) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, ?)")
+                    .bind(aiMsgId, chatId, userId, 'assistant', aiReply, aiNowIso).run();
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    aiMessage: { id: aiMsgId, body: aiReply, created_at: aiNowIso, audioUrl: null, error: null }
+                }), { headers: { "Content-Type": "application/json" } });
             }
         } else {
             // Layer 4: Daily Soft Usage Cap for PAID users

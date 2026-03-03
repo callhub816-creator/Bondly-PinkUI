@@ -24,7 +24,7 @@ type AuthContextType = {
   upgradeSubscription: (plan: SubscriptionPlan) => Promise<void>;
   purchaseHearts: (amount: number) => Promise<void>;
   spendHearts: (amount: number) => Promise<boolean>;
-  sendGift: (companionId: string | number, giftId: string) => Promise<boolean>;
+  sendGift: (companionId: string | number, giftId: string) => Promise<{ success: boolean; bonus?: number }>;
   unlockConnectionTier: (companionId: string | number, tier: ConnectionLevel) => boolean;
   leasePersonality: (mode: string) => boolean;
   extendMessages: () => Promise<boolean>;
@@ -399,11 +399,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendGift = async (companionId: string | number, giftId: string) => {
-    // Gift prices map (ensure sync with constants)
-    const prices: Record<string, number> = { 'rose': 10, 'chocolate': 25, 'teddy': 50, 'ring': 150, 'necklace': 500 };
-    const price = prices[giftId] || 10;
+    try {
+      const res = await authFetch('/api/user/send_gift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ giftId, companionId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-    return await spendHearts(price);
+      if (data.success) {
+        setProfile(prev => {
+          const updated = { ...prev, ...data.profile };
+          storage.saveProfile(updated);
+          return updated;
+        });
+        return { success: true, bonus: data.bonus_awarded };
+      }
+      return { success: false };
+    } catch (err) {
+      console.error("Send Gift Error:", err);
+      return { success: false };
+    }
   };
 
   const unlockConnectionTier = (companionId: string | number, tier: ConnectionLevel) => {

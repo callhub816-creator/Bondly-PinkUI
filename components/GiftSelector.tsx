@@ -26,11 +26,13 @@ const GiftSelector: React.FC<GiftSelectorProps> = ({ onClose, companionId, compa
     };
 
     const handleSendGift = async (giftId: string, giftName: string, icon: string, currentPrice: number) => {
-        // We pass the dynamic price to the backend if supported, 
-        // or just ensure spendHearts deducts this amount.
-        const success = await sendGift(companionId, giftId);
-        if (success) {
-            showNotification(`You sent a ${giftName} ${icon} to ${companionName}. Trust deepened! ✨`, 'success');
+        const result = await sendGift(companionId, giftId);
+        if (result.success) {
+            if (result.bonus && result.bonus > 0) {
+                showNotification(`Mood refreshed! ☕ +${result.bonus} Bonus Hearts received.`, 'success');
+            } else {
+                showNotification(`You sent a ${giftName} ${icon} to ${companionName}. Trust deepened! ✨`, 'success');
+            }
             onGiftSent(giftName, icon);
             onClose();
         } else {
