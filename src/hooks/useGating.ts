@@ -20,6 +20,9 @@ export const useGating = () => {
     };
 
     const isMessageLimitReached = () => {
+        // If user has hearts, they can always chat (pay-per-message)
+        if ((profile.hearts || 0) >= 1) return false;
+
         // STARTER and CORE plans give unlimited chat
         if (profile.subscription === 'starter' || profile.subscription === 'core' || profile.subscription === 'plus') return false;
 

@@ -114,7 +114,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
         // 🚀 FETCH ALL USER DATA (Handle + Profile + Memory + Subscription)
         const [userRow, subRow] = await Promise.all([
-            env.DB.prepare("SELECT username, display_name, long_term_memory, user_preferences, energy_expires_at FROM users WHERE id = ?").bind(userId).first(),
+            env.DB.prepare("SELECT username, display_name, hearts, long_term_memory, user_preferences, energy_expires_at FROM users WHERE id = ?").bind(userId).first(),
             env.DB.prepare("SELECT plan_name FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first()
         ]);
 
@@ -188,8 +188,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
                 return new Response(JSON.stringify({ error: "Forbidden: Premium Persona requires active subscription." }), { status: 403 });
             }
 
-            if (msgCount >= 10) {
-                return new Response(JSON.stringify({ error: "Daily capacity reached. Upgrade to extend session capacity." }), { status: 429 });
+            if (msgCount >= 10 && (userRow.hearts || 0) < 1) {
+                return new Response(JSON.stringify({ error: "Daily capacity reached. Upgrade or refill Hearts to extend session capacity." }), { status: 429 });
             }
 
             // 💖 REVISED SMART CONVERSION LAYER (Natural & Emotional)
