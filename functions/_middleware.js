@@ -68,12 +68,12 @@ export async function onRequest({ request, next, env }) {
     const newHeaders = new Headers(response.headers);
     const csp = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com https://api.sardine.ai",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.razorpay.com https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com https://api.sardine.ai",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https://* blob:",
         "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://lumberjack.razorpay.com https://api.razorpay.com https://api.sardine.ai https://cdn.razorpay.com",
-        "frame-src 'self' https://api.razorpay.com https://bondly-9ec57.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://*.razorpay.com https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://lumberjack.razorpay.com https://api.razorpay.com https://api.sardine.ai https://cdn.razorpay.com",
+        "frame-src 'self' https://api.razorpay.com https://*.razorpay.com https://bondly-9ec57.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
         "media-src 'self' data: https://*",
         "worker-src 'self' blob:"
     ].join("; ");
@@ -83,7 +83,7 @@ export async function onRequest({ request, next, env }) {
     newHeaders.set("X-Content-Type-Options", "nosniff");
     newHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
     newHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-    newHeaders.set("Permissions-Policy", "accelerometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), gyroscope=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), magnetometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), payment=(self)");
+    newHeaders.set("Permissions-Policy", "accelerometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), gyroscope=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), magnetometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), payment=(self), camera=(), microphone=(), geolocation=()");
 
     return new Response(response.body, {
         status: response.status,
