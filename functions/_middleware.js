@@ -2,7 +2,6 @@
 export async function onRequest({ request, next, env }) {
     const ip = request.headers.get("cf-connecting-ip") || "unknown";
     const now = Date.now();
-    const minuteAgo = now - 60000;
 
     // 🛡️ PHASE 2: GUARDIAN (Runtime Defense)
     const adminIp = env.ADMIN_IP || "127.0.0.1";
@@ -29,7 +28,7 @@ export async function onRequest({ request, next, env }) {
             if (hits > 100) {
                 await env.GUARDIAN_KV?.put(`block:${ip}`, "true", { expirationTtl: 3600 }); // Block for 1 hour
 
-                // 📝 Log the block event in D1 for audit (Fixed table name and columns)
+                // 📝 Log the block event in D1
                 await env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
                     .bind(crypto.randomUUID(), "SYSTEM", "guardian_block", ip, JSON.stringify({ hits }), new Date().toISOString()).run();
 
@@ -37,7 +36,6 @@ export async function onRequest({ request, next, env }) {
             }
         } catch (e) {
             console.error("Guardian KV Error:", e.message);
-            // Fail-open: if KV fails, don't crash the site
         }
     }
 
@@ -60,7 +58,6 @@ export async function onRequest({ request, next, env }) {
                 return new Response(JSON.stringify({ error: "Forbidden: Malformed Origin" }), { status: 403, headers: { "Content-Type": "application/json" } });
             }
         } else {
-            // Strict enforce: If there is no Origin on a POST (e.g. from Postman or cURL), block it.
             return new Response(JSON.stringify({ error: "Forbidden: Missing Origin Header (CSRF Guard)" }), { status: 403, headers: { "Content-Type": "application/json" } });
         }
     }
@@ -71,11 +68,11 @@ export async function onRequest({ request, next, env }) {
     const newHeaders = new Headers(response.headers);
     const csp = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com https://api.sardine.ai",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com https://apis.google.com https://www.gstatic.com https://api.sardine.ai",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https://* blob:",
         "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://lumberjack.razorpay.com https://api.razorpay.com https://api.sardine.ai",
+        "connect-src 'self' https://api.sambanova.ai https://api.elevenlabs.io https://*.elevenlabs.io https://cloudflareinsights.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://lumberjack.razorpay.com https://api.razorpay.com https://api.sardine.ai https://cdn.razorpay.com",
         "frame-src 'self' https://api.razorpay.com https://bondly-9ec57.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
         "media-src 'self' data: https://*",
         "worker-src 'self' blob:"
