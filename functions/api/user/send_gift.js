@@ -52,14 +52,7 @@ export async function onRequestPost({ request, env }) {
         const bonus = config.bonus;
         const netDeduction = price - bonus;
 
-        // 3. 💾 ATOMIC UPDATE
-        const user = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
-        if (!user) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
-
-        if (user.hearts < price) {
-            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️" }), { status: 400 });
-        }
-
+        // 3. 💾 ATOMIC UPDATE (Safe from Race Conditions)
         const nowIso = new Date().toISOString();
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
 
@@ -69,21 +62,26 @@ export async function onRequestPost({ request, env }) {
             energyExpiration = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
         }
 
-        const newBalance = user.hearts - price + bonus;
-
         const queries = [
-            // Deduct Price + Add Bonus (Net Deduction)
-            env.DB.prepare("UPDATE users SET hearts = ?, updated_at = ? WHERE id = ?").bind(newBalance, nowIso, userId),
+            // Safe Debit: Update ONLY if balance is sufficient
+            env.DB.prepare(`
+                UPDATE users 
+                SET 
+                    hearts = hearts - ? + ?, 
+                    total_spent = total_spent + ?,
+                    updated_at = ?
+                WHERE id = ? AND hearts >= ?
+            `).bind(price, bonus, price, nowIso, userId, price),
 
             // Log the Gift Transaction
-            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), userId, -price, user.hearts - price, 'gift_purchase', `Gift: ${giftId}`, ip, nowIso)
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, ip_address, created_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), userId, -price, 'gift_purchase', `Gift: ${giftId}`, ip, nowIso)
         ];
 
         if (bonus > 0) {
             queries.push(
-                env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(crypto.randomUUID(), userId, bonus, newBalance, 'bonus', `Bonus for Gift: ${giftId}`, ip, nowIso)
+                env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, ip_address, created_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), userId, bonus, 'bonus', `Bonus for Gift: ${giftId}`, ip, nowIso)
             );
         }
 
@@ -93,7 +91,11 @@ export async function onRequestPost({ request, env }) {
             );
         }
 
-        await env.DB.batch(queries);
+        const batchResult = await env.DB.batch(queries);
+
+        if (batchResult[0].meta.changes === 0) {
+            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️" }), { status: 400 });
+        }
 
         const [walletFinal, subFinal] = await Promise.all([
             env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),

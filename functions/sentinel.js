@@ -4,8 +4,13 @@ export default {
         ctx.waitUntil(runSentinel(env));
     },
     async fetch(request, env) {
-        // Manual trigger for testing
-        if (new URL(request.url).pathname === "/trigger-sentinel") {
+        // 🔒 PROTECTED: Only allow admins to trigger sentinel
+        const url = new URL(request.url);
+        if (url.pathname === "/trigger-sentinel") {
+            const adminKey = request.headers.get("x-admin-secret");
+            if (!adminKey || adminKey !== env.ADMIN_SECRET_KEY) {
+                return new Response(JSON.stringify({ error: "Unauthorized Sentinel Trigger" }), { status: 401 });
+            }
             const results = await runSentinel(env);
             return new Response(JSON.stringify(results), { headers: { "Content-Type": "application/json" } });
         }

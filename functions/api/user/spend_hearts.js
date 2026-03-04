@@ -53,30 +53,31 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "Too many transactions. Wait a minute." }), { status: 429 });
         }
 
-        // 3. 💾 ATOMIC DEBIT + AUDIT TRAIL
-        const wallet = await env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first();
-        if (!wallet) return new Response(JSON.stringify({ error: "Wallet not found" }), { status: 404 });
-
-        const oldBalance = wallet.hearts || 0;
-        if (oldBalance < amount) return new Response(JSON.stringify({ error: "Insufficient hearts" }), { status: 400 });
-
-        const newBalance = oldBalance - amount;
+        // 3. 💾 ATOMIC DEBIT (Safe from Race Conditions)
         const nowIso = new Date().toISOString();
         const ip = request.headers.get("cf-connecting-ip") || "unknown";
 
-        await env.DB.batch([
+        // Execute batch: Deduct ONLY if balance is sufficient
+        const batchResult = await env.DB.batch([
             // Update Wallet
-            env.DB.prepare("UPDATE users SET hearts = ?, total_spent = total_spent + ?, updated_at = ? WHERE id = ?")
-                .bind(newBalance, amount, nowIso, userId),
+            env.DB.prepare(`
+                UPDATE users 
+                SET hearts = hearts - ?, total_spent = total_spent + ?, updated_at = ? 
+                WHERE id = ? AND hearts >= ?
+            `).bind(amount, amount, nowIso, userId, amount),
 
-            // Audit Log
-            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)")
-                .bind(crypto.randomUUID(), userId, -amount, newBalance, 'spend', reason || "manual_spend", ip, nowIso),
+            // Audit Trail (Placeholder balance_after will be updated if needed, but atomicity is key)
+            env.DB.prepare("INSERT INTO wallet_transactions (id, user_id, amount, balance_after, type, reason, reference_id, ip_address, created_at) VALUES (?, ?, ?, 0, ?, ?, NULL, ?, ?)")
+                .bind(crypto.randomUUID(), userId, -amount, 'spend', reason || "manual_spend", ip, nowIso),
 
             // Event Log
             env.DB.prepare("INSERT INTO user_visits (id, user_id, session_id, visit_type, ip_address, metadata, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), userId, 'spend_hearts', ip, JSON.stringify({ amount, reason }), nowIso)
         ]);
+
+        if (batchResult[0].meta.changes === 0) {
+            return new Response(JSON.stringify({ error: "Insufficient hearts! ❤️" }), { status: 400 });
+        }
 
         const [walletFinal, subFinal] = await Promise.all([
             env.DB.prepare("SELECT hearts FROM users WHERE id = ?").bind(userId).first(),
