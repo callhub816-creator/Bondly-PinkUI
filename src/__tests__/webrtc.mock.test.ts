@@ -1,3 +1,5 @@
+import { vi as jest } from 'vitest';
+
 /**
  * Mocked WebRTC signaling test
  * Simulates:
