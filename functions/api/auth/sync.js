@@ -57,7 +57,12 @@ export async function onRequestPost({ request, env }) {
     }
 
     try {
-        const { profileData } = await request.json();
+        const body = await request.json();
+        const profileData = body.profileData;
+
+        if (!profileData) {
+            return new Response(JSON.stringify({ error: "Missing profileData in request" }), { status: 400 });
+        }
 
         // 🛡️ [SECURITY LOCK] Fetch Existing Data + Wallet + Subscription
         const [userRow, walletRow, subRow] = await Promise.all([
