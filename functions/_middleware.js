@@ -83,7 +83,8 @@ export async function onRequest({ request, next, env }) {
     newHeaders.set("X-Content-Type-Options", "nosniff");
     newHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
     newHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-    newHeaders.set("Permissions-Policy", "accelerometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), gyroscope=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), magnetometer=(self \"https://checkout.razorpay.com\" \"https://api.sardine.ai\"), payment=(self), camera=(), microphone=(), geolocation=()");
+    newHeaders.set("Permissions-Policy", "accelerometer=(self \"https://*.razorpay.com\" \"https://api.sardine.ai\"), gyroscope=(self \"https://*.razorpay.com\" \"https://api.sardine.ai\"), magnetometer=(self \"https://*.razorpay.com\" \"https://api.sardine.ai\"), payment=(self), camera=(), microphone=(), geolocation=()");
+    newHeaders.set("Access-Control-Expose-Headers", "x-rtb-fingerprint-id");
 
     return new Response(response.body, {
         status: response.status,

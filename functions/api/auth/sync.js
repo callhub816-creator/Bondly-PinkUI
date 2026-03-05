@@ -57,8 +57,13 @@ export async function onRequestPost({ request, env }) {
     }
 
     try {
-        const body = await request.json();
-        const profileData = body.profileData;
+        let profileData;
+        try {
+            const body = await request.json();
+            profileData = body?.profileData;
+        } catch (e) {
+            return new Response(JSON.stringify({ error: "Invalid or empty request body" }), { status: 400 });
+        }
 
         if (!profileData) {
             return new Response(JSON.stringify({ error: "Missing profileData in request" }), { status: 400 });
@@ -75,8 +80,6 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
         }
 
-        const existingProfile = JSON.parse("{}");
-
         // 🔒 ALLOWED FIELDS ONLY (Whitelist)
         const safeUpdate = {
             id: userId,
@@ -91,28 +94,34 @@ export async function onRequestPost({ request, env }) {
             displayName: profileData.displayName || profileData.nickname,
             nickname: profileData.nickname,
             avatarUrl: profileData.avatarUrl,
-            // Prune history to last 7 days during sync
             earningsHistory: (profileData.earningsHistory || [])
                 .filter(item => {
                     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                    return new Date(item.timestamp).getTime() > cutoff;
+                    try {
+                        return new Date(item.timestamp).getTime() > cutoff;
+                    } catch (e) { return false; }
                 })
                 .slice(0, 50)
         };
 
         // 🛡️ PERSISTENT UPDATE: Sync key profile fields to users table
+        const updateName = profileData.nickname || profileData.displayName || "User";
+        const updateAvatar = profileData.avatarUrl || null;
+
         await env.DB.prepare(`
             UPDATE users 
             SET display_name = ?, avatar_url = ?, updated_at = ?
             WHERE id = ?
         `).bind(
-            profileData.nickname || profileData.displayName,
-            profileData.avatarUrl,
+            updateName,
+            updateAvatar,
             new Date().toISOString(),
             userId
         ).run();
 
-        return new Response(JSON.stringify({ success: true, profile: safeUpdate }), { headers: { "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ success: true, profile: safeUpdate }), {
+            headers: { "Content-Type": "application/json" }
+        });
 
     } catch (err) {
         console.error("Sync Error:", err.message);
